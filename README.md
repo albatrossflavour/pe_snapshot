@@ -38,6 +38,8 @@ pe_snapshot::proxy: puppet.example.com
 pe_snapshot::endpoint: lab_pve
 ```
 
+`pe_snapshot::endpoint` can also be a list. Use one where a VM can move between hosts or clusters that have separate APIs: standalone ESXi hosts, libvirt hosts, or more than one vCenter. Each VM is looked up on every endpoint in the list, and it must be found on exactly one. A VM found on two is refused, and so is a VM where one endpoint couldn't be asked, because that endpoint might be the one holding it. Don't list the same cluster twice. A single cluster-level endpoint (vCenter, any node of a Proxmox cluster) already follows vMotion and migrations, because the VM is looked up again on every call.
+
 The provider and VM id are detected from facts. On a `kvm` guest the provider defaults to Proxmox, through `pe_snapshot::virtual_map`. Set `pe_snapshot::provider` where that's wrong, and set `pe_snapshot::vm_id` where detection can't find the VM.
 
 On the proxy, list the endpoints and their credentials:
@@ -137,6 +139,7 @@ The snapshot list comes from a marker file that the plans write on the target. T
 
 ## Limits
 
+- A VM id that matches more than one VM is refused with `pe_snapshot/ambiguous_vm`. Clones can keep their source's BIOS UUID (vCenter asks whether to keep it), and guessing could snapshot or restore the wrong machine. Set `pe_snapshot::vm_id` for those nodes.
 - The proxy must be Linux.
 - `restore` keeps the snapshot. The target's own marker file is rolled back with its disk, so its `pe_snapshot` fact won't list the snapshot afterwards. The proxy's fact still does.
 - The plans run their tasks on the proxy, so the user running a plan needs PE permission to run tasks on the proxy as well as on the targets.

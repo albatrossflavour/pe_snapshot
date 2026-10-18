@@ -9,22 +9,32 @@ module PeSnapshot
   module Actions
     module_function
 
+    # endpoint may be one name or a list. A list covers VMs that migrate
+    # between hosts or clusters with separate APIs (standalone ESXi, libvirt,
+    # cross-vCenter vMotion): each VM is looked up on all of them.
     def call(action, params, now: Time.now)
       raise Error.new('bad_action', "Unknown action '#{action}'") unless ['create', 'delete', 'list', 'restore'].include?(action)
 
-      endpoint = PeSnapshot.load_endpoint(params['endpoint'], params['credentials'])
-      raise Error.new('provider_mismatch', "Endpoint '#{endpoint['name']}' is #{endpoint['provider']}, not #{params['provider']}") if params['provider'] && params['provider'] != endpoint['provider']
+      names = Array(params['endpoint'])
+      raise Error.new('missing_parameter', 'endpoint is required') if names.empty?
 
-      provider = PeSnapshot.provider_for(endpoint)
-      send(action, provider, endpoint, params, now)
+      pool = names.map do |n|
+        endpoint = PeSnapshot.load_endpoint(n, params['credentials'])
+        raise Error.new('provider_mismatch', "Endpoint '#{n}' is #{endpoint['provider']}, not #{params['provider']}") if params['provider'] && params['provider'] != endpoint['provider']
+
+        [endpoint, PeSnapshot.provider_for(endpoint)]
+      end
+      send(action, pool, params, now)
     end
 
-    def create(provider, endpoint, params, now)
+    # Retention settings come from the proxy class, so every endpoint on one
+    # proxy carries the same ones and the first is as good as any.
+    def create(pool, params, now)
       tag = required(params, 'tag')
-      hours = retention(params['retention_hours'], endpoint)
+      hours = retention(params['retention_hours'], pool.first.first)
       name = PeSnapshot.snapshot_name(tag, now)
       expires = hours.zero? ? 0 : now.to_i + (hours * 3600)
-      per_vm(provider, params) do |vm, certname|
+      per_vm(pool, params) do |provider, vm, certname|
         meta = { 'pe_snapshot' => 1, 'certname' => certname, 'tag' => tag, 'created' => now.to_i, 'expires' => expires, 'by' => params['by'] || 'pe_snapshot' }
         provider.create(vm, name, PeSnapshot.encode_meta(meta), memory: params['memory'] == true, quiesce: params['quiesce'] == true)
         { 'name' => name, 'tag' => tag, 'created' => now.to_i, 'expires' => expires }
@@ -32,25 +42,25 @@ module PeSnapshot
     end
 
     # Deleting something already gone is a success, so a retry is safe.
-    def delete(provider, _endpoint, params, now)
+    def delete(pool, params, now)
       raise Error.new('missing_parameter', 'delete needs a tag or a name') unless params['tag'] || params['name']
 
-      per_vm(provider, params) do |vm, _certname|
+      per_vm(pool, params) do |provider, vm, _certname|
         doomed = select(managed(provider, vm, now), params)
         doomed.each { |s| provider.delete(vm, s['name']) }
         { 'deleted' => doomed.map { |s| s['name'] } }
       end
     end
 
-    def list(provider, _endpoint, params, now)
-      per_vm(provider, params) { |vm, _certname| { 'snapshots' => select(managed(provider, vm, now), params) } }
+    def list(pool, params, now)
+      per_vm(pool, params) { |provider, vm, _certname| { 'snapshots' => select(managed(provider, vm, now), params) } }
     end
 
-    def restore(provider, _endpoint, params, now)
+    def restore(pool, params, now)
       required(params, 'tag')
       raise Error.new('too_many_targets', 'restore takes exactly one VM') unless Array(params['vms']).size == 1
 
-      per_vm(provider, params) do |vm, _certname|
+      per_vm(pool, params) do |provider, vm, _certname|
         matches = select(managed(provider, vm, now), params)
         raise Error.new('snapshot_not_found', "No managed snapshot matches tag '#{params['tag']}'") if matches.empty?
         raise Error.new('ambiguous_snapshot', "#{matches.size} snapshots match tag '#{params['tag']}', pass a name", 'names' => matches.map { |s| s['name'] }) if matches.size > 1
@@ -97,22 +107,47 @@ module PeSnapshot
       value
     end
 
+    # Finds the one VM with this id across the endpoints. Not found on one
+    # endpoint means try the next; any other failure stops the lookup, because
+    # an endpoint we couldn't ask might also hold the VM. Found on two is
+    # refused rather than guessed, since the caller could then snapshot or
+    # restore the wrong machine.
+    def locate(pool, vm_id)
+      found = pool.filter_map do |endpoint, provider|
+        [endpoint['name'], provider, provider.resolve(vm_id)]
+      rescue Error => e
+        raise unless e.kind == 'pe_snapshot/vm_not_found'
+
+        nil
+      end
+      names = pool.map { |ep, _| ep['name'] }
+      raise Error.new('vm_not_found', "No VM matches '#{vm_id}' on endpoint(s) #{names.join(', ')}", 'vm_id' => vm_id) if found.empty?
+
+      if found.size > 1
+        raise Error.new('ambiguous_vm', "VM '#{vm_id}' matches on more than one endpoint (#{found.map(&:first).join(', ')}). Set pe_snapshot::vm_id or narrow pe_snapshot::endpoint.",
+                        'vm_id' => vm_id, 'endpoints' => found.map(&:first))
+      end
+
+      found.first
+    end
+
     # VMs are resolved one at a time, because resolving warms the provider's
     # caches, then the work runs concurrently.
-    def per_vm(provider, params)
+    def per_vm(pool, params)
       vms = Array(params['vms'])
       raise Error.new('missing_parameter', 'vms is empty') if vms.empty?
 
       resolved = vms.map do |v|
-        [v['certname'], provider.resolve(v['vm_id'])]
+        [v['certname'], locate(pool, v['vm_id'])]
       rescue Error => e
         [v['certname'], e]
       end
-      values = PeSnapshot.each_concurrently(resolved, params.fetch('concurrency', 5)) do |certname, vm|
-        next { '_error' => vm.to_h } if vm.is_a?(Error)
+      values = PeSnapshot.each_concurrently(resolved, params.fetch('concurrency', 5)) do |certname, where|
+        next { '_error' => where.to_h } if where.is_a?(Error)
 
+        endpoint_name, provider, vm = where
         begin
-          yield(vm, certname)
+          yield(provider, vm, certname).merge('endpoint' => endpoint_name)
         rescue Error => e
           { '_error' => e.to_h }
         rescue StandardError => e

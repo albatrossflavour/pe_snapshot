@@ -164,3 +164,11 @@ RSpec/MultipleDescribes:
   Enabled: false
 RSpec/MessageSpies:
   EnforcedStyle: have_received
+Metrics/ModuleLength:
+  Enabled: false
+Metrics/CyclomaticComplexity:
+  Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
+RSpec/MultipleMemoizedHelpers:
+  Enabled: false

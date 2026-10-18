@@ -11,8 +11,8 @@
       "type": "Optional[String[1]]"
     },
     "endpoint": {
-      "description": "Name of an endpoint configured on this proxy by pe_snapshot::proxy.",
-      "type": "Pattern[/\\A[a-z0-9_]+\\z/]"
+      "description": "Endpoint name, or a list of them, configured on this proxy by pe_snapshot::proxy. With a list, each VM is looked up on every endpoint and must be found on exactly one.",
+      "type": "Variant[Pattern[/\\A[a-z0-9_]+\\z/], Array[Pattern[/\\A[a-z0-9_]+\\z/], 1]]"
     },
     "vms": {
       "description": "The VMs to act on, as certname and the vm_id from the pe_snapshot fact.",

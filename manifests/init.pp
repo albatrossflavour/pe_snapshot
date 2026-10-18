@@ -12,7 +12,10 @@
 #   Certname of the node that talks to the hypervisor API for this node. It
 #   needs pe_snapshot::proxy with a matching endpoint.
 # @param endpoint
-#   Name of the endpoint on the proxy.
+#   Name of the endpoint on the proxy, or a list of them. Use a list where the
+#   VM can move between hosts or clusters that have separate APIs (standalone
+#   ESXi, libvirt hosts, more than one vCenter). The VM is looked up on each
+#   and must be found on exactly one. Don't list the same cluster twice.
 # @param vm_id
 #   The provider's identity for this VM. Detected per provider: the SMBIOS
 #   uuid for proxmox, vsphere and libvirt, zone/name for gce, the instance id
@@ -27,7 +30,7 @@
 class pe_snapshot (
   Optional[Pattern[/\A[a-z0-9_]+\z/]] $provider = undef,
   Optional[String[1]] $proxy = undef,
-  Optional[Pattern[/\A[a-z0-9_]+\z/]] $endpoint = undef,
+  Optional[Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]] $endpoint = undef,
   Optional[String[1]] $vm_id = undef,
   Hash[String[1], Pattern[/\A[a-z0-9_]+\z/]] $virtual_map = {},
 ) {

@@ -33,6 +33,10 @@ The `pe_snapshot` class goes on every node that can be snapshotted. It resolves 
 - `endpoint`, the name of a configured endpoint on that proxy (a Proxmox cluster, a vCenter, a GCE project)
 - `vm_id`, from Hiera or detected per provider as in the table above
 
+`endpoint` can be a list, for VMs that move between hosts or clusters with separate APIs (standalone ESXi, libvirt, cross-vCenter vMotion). The task looks the VM up on each endpoint and needs exactly one hit. A guest can't reliably see which host it runs on (VMware hides it, Proxmox and KVM don't expose it, only Hyper-V's KVP does), so the lookup happens at call time instead. A cluster-level endpoint follows migrations without a list.
+
+A VM id matching more than one VM, on one endpoint or across a list, is refused. Clones can keep their source's BIOS UUID, and acting on the first match could restore the wrong machine.
+
 The class writes these to `/etc/puppetlabs/pe_snapshot/target.json`, and the `pe_snapshot` fact publishes them. Plans read the fact from PuppetDB with `puppetdb_query` and group targets by proxy and endpoint, so a caller only passes target nodes. A node with no resolvable mapping is reported as unmapped, never silently skipped.
 
 The proxy does not need the node list. Its expiry sweep lists every snapshot named with the module's prefix on the endpoints it holds, and each snapshot carries its own certname and expiry in its metadata.

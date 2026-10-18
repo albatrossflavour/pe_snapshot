@@ -35,12 +35,18 @@ describe PeSnapshot::Providers::Proxmox do
     expect(provider.resolve('53f5c75d-42c9-4fc3-b79b-285a14dd05ba')).to include('vmid' => 101, 'node' => 'ankh')
   end
 
+  it 'refuses a uuid shared by two VMs, as a clone can be' do
+    resources['data'] << { 'type' => 'qemu', 'vmid' => 102, 'node' => 'morpork', 'template' => 0 }
+    allow(http).to receive(:get).with(%r{/qemu/10[12]/config}).and_return('data' => { 'smbios1' => 'uuid=53f5c75d-42c9-4fc3-b79b-285a14dd05ba' })
+    expect { provider.resolve('53f5c75d-42c9-4fc3-b79b-285a14dd05ba') }.to raise_error(PeSnapshot::Error) { |e| expect(e.kind).to eq('pe_snapshot/ambiguous_vm') }
+  end
+
   it 'resolves a VM by vmid' do
     expect(provider.resolve('101')).to include('node' => 'ankh')
   end
 
   it 'reports a VM it cannot find' do
-    expect { provider.resolve('555') }.to raise_error(PeSnapshot::Error, %r{No Proxmox VM})
+    expect { provider.resolve('555') }.to raise_error(PeSnapshot::Error, %r{No VM matches '555' on endpoint lab})
   end
 
   it 'leaves out the current pseudo-snapshot' do

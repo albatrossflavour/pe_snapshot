@@ -84,9 +84,12 @@ Default value: `undef`
 
 ##### <a name="-pe_snapshot--endpoint"></a>`endpoint`
 
-Data type: `Optional[Pattern[/\A[a-z0-9_]+\z/]]`
+Data type: `Optional[Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]]`
 
-Name of the endpoint on the proxy.
+Name of the endpoint on the proxy, or a list of them. Use a list where the
+VM can move between hosts or clusters that have separate APIs (standalone
+ESXi, libvirt hosts, more than one vCenter). The VM is looked up on each
+and must be found on exactly one. Don't list the same cluster twice.
 
 Default value: `undef`
 
@@ -274,9 +277,9 @@ Provider name. Checked against the endpoint, which is authoritative.
 
 ##### `endpoint`
 
-Data type: `Pattern[/\A[a-z0-9_]+\z/]`
+Data type: `Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]`
 
-Name of an endpoint configured on this proxy by pe_snapshot::proxy.
+Endpoint name, or a list of them, configured on this proxy by pe_snapshot::proxy. With a list, each VM is looked up on every endpoint and must be found on exactly one.
 
 ##### `vms`
 
@@ -342,9 +345,9 @@ Provider name. Checked against the endpoint, which is authoritative.
 
 ##### `endpoint`
 
-Data type: `Pattern[/\A[a-z0-9_]+\z/]`
+Data type: `Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]`
 
-Name of an endpoint configured on this proxy by pe_snapshot::proxy.
+Endpoint name, or a list of them, configured on this proxy by pe_snapshot::proxy. With a list, each VM is looked up on every endpoint and must be found on exactly one.
 
 ##### `vms`
 
@@ -392,9 +395,9 @@ Provider name. Checked against the endpoint, which is authoritative.
 
 ##### `endpoint`
 
-Data type: `Pattern[/\A[a-z0-9_]+\z/]`
+Data type: `Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]`
 
-Name of an endpoint configured on this proxy by pe_snapshot::proxy.
+Endpoint name, or a list of them, configured on this proxy by pe_snapshot::proxy. With a list, each VM is looked up on every endpoint and must be found on exactly one.
 
 ##### `vms`
 
@@ -480,9 +483,9 @@ Provider name. Checked against the endpoint, which is authoritative.
 
 ##### `endpoint`
 
-Data type: `Pattern[/\A[a-z0-9_]+\z/]`
+Data type: `Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]`
 
-Name of an endpoint configured on this proxy by pe_snapshot::proxy.
+Endpoint name, or a list of them, configured on this proxy by pe_snapshot::proxy. With a list, each VM is looked up on every endpoint and must be found on exactly one.
 
 ##### `vms`
 

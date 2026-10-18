@@ -76,6 +76,20 @@ module PeSnapshot
     (expires.positive? && now.to_i >= expires) ? 'expired' : 'active'
   end
 
+  # Providers use this to pick the VM matching an id. More than one match is
+  # refused: clones can keep their source's BIOS uuid (vCenter asks, and
+  # people answer "keep"), and guessing could restore the wrong VM.
+  def one_vm(matches, vm_id, endpoint_name)
+    raise Error.new('vm_not_found', "No VM matches '#{vm_id}' on endpoint #{endpoint_name}", 'vm_id' => vm_id) if matches.empty?
+
+    if matches.size > 1
+      raise Error.new('ambiguous_vm', "#{matches.size} VMs match '#{vm_id}' on endpoint #{endpoint_name}, probably a clone that kept its uuid. Set pe_snapshot::vm_id for this node.",
+                      'vm_id' => vm_id, 'matches' => matches)
+    end
+
+    matches.first
+  end
+
   # The provider name comes from config or task input, so it is checked
   # against a plain pattern before it becomes a file path.
   def provider_class(name)

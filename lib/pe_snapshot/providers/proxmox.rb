@@ -37,14 +37,12 @@ module PeSnapshot
 
       def resolve(vm_id)
         id = vm_id.to_s.downcase
-        found = if id.match?(%r{\A\d+\z})
-                  vms.find { |v| v['vmid'] == id.to_i }
-                else
-                  vms.find { |v| smbios_uuid(v) == id }
-                end
-        raise Error.new('vm_not_found', "No Proxmox VM matches '#{vm_id}'", 'vm_id' => vm_id) unless found
-
-        found
+        matches = if id.match?(%r{\A\d+\z})
+                    vms.select { |v| v['vmid'] == id.to_i }
+                  else
+                    vms.select { |v| smbios_uuid(v) == id }
+                  end
+        PeSnapshot.one_vm(matches, vm_id, @endpoint['name'])
       end
 
       def list(vm)

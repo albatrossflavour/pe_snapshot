@@ -17,6 +17,13 @@ describe 'pe_snapshot' do
     it { expect(target_config).to eq('provider' => 'proxmox', 'proxy' => 'puppet.example.com', 'endpoint' => 'lab_pve', 'vm_id' => 'abc-1', 'mapped' => true) }
   end
 
+  context 'with a list of endpoints' do
+    let(:facts) { base.merge('virtual' => 'kvm') }
+    let(:params) { { 'proxy' => 'puppet.example.com', 'endpoint' => ['esx01', 'esx02'], 'provider' => 'libvirt' } }
+
+    it { expect(target_config).to include('endpoint' => ['esx01', 'esx02'], 'mapped' => true) }
+  end
+
   context 'with no proxy' do
     let(:facts) { base.merge('virtual' => 'kvm') }
 

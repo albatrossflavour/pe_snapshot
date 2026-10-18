@@ -19,9 +19,7 @@ class FakeProvider
   end
 
   def resolve(vm_id)
-    raise PeSnapshot::Error.new('vm_not_found', "no #{vm_id}") unless @snaps.key?(vm_id)
-
-    { 'vm_id' => vm_id }
+    PeSnapshot.one_vm(@snaps.key?(vm_id) ? [{ 'vm_id' => vm_id }] : [], vm_id, 'fake')
   end
 
   def list(vm)
@@ -47,6 +45,7 @@ describe PeSnapshot::Actions do
   let(:now) { Time.at(1_760_000_000) }
   let(:endpoint) { { 'name' => 'lab', 'provider' => 'fake', 'default_retention_hours' => 24, 'max_retention_hours' => 168 } }
   let(:provider) { FakeProvider.new('100' => [], '200' => []) }
+  let(:pool) { [[endpoint, provider]] }
   let(:vms) { [{ 'certname' => 'a.example.com', 'vm_id' => '100' }, { 'certname' => 'b.example.com', 'vm_id' => '200' }] }
 
   def managed_snap(name, tag, created, expires)
@@ -56,7 +55,7 @@ describe PeSnapshot::Actions do
 
   describe 'create' do
     it 'snapshots every VM with the same name and default expiry' do
-      out = described_class.create(provider, endpoint, { 'tag' => 'run1', 'vms' => vms }, now)['results']
+      out = described_class.create(pool, { 'tag' => 'run1', 'vms' => vms }, now)['results']
       expect(out.keys).to eq(['a.example.com', 'b.example.com'])
       expect(out.values.map { |v| v['name'] }.uniq.size).to eq(1)
       expect(out['a.example.com']['expires']).to eq(now.to_i + (24 * 3600))
@@ -64,19 +63,19 @@ describe PeSnapshot::Actions do
     end
 
     it 'writes metadata the module can read back' do
-      described_class.create(provider, endpoint, { 'tag' => 'run1', 'vms' => vms }, now)
+      described_class.create(pool, { 'tag' => 'run1', 'vms' => vms }, now)
       meta = PeSnapshot.decode_meta(provider.snaps['100'].first['description'])
       expect(meta).to include('certname' => 'a.example.com', 'tag' => 'run1', 'created' => now.to_i)
     end
 
     it 'reports a VM it cannot resolve without failing the others' do
-      out = described_class.create(provider, endpoint, { 'tag' => 't', 'vms' => vms + [{ 'certname' => 'c', 'vm_id' => '999' }] }, now)['results']
+      out = described_class.create(pool, { 'tag' => 't', 'vms' => vms + [{ 'certname' => 'c', 'vm_id' => '999' }] }, now)['results']
       expect(out['c']['_error']['kind']).to eq('pe_snapshot/vm_not_found')
       expect(out['a.example.com']).not_to have_key('_error')
     end
 
     it 'refuses retention over the proxy maximum' do
-      expect { described_class.create(provider, endpoint, { 'tag' => 't', 'vms' => vms, 'retention_hours' => 169 }, now) }
+      expect { described_class.create(pool, { 'tag' => 't', 'vms' => vms, 'retention_hours' => 169 }, now) }
         .to raise_error(PeSnapshot::Error, %r{maximum of 168})
     end
 
@@ -86,7 +85,37 @@ describe PeSnapshot::Actions do
     end
 
     it 'needs a tag' do
-      expect { described_class.create(provider, endpoint, { 'vms' => vms }, now) }.to raise_error(PeSnapshot::Error, %r{tag is required})
+      expect { described_class.create(pool, { 'vms' => vms }, now) }.to raise_error(PeSnapshot::Error, %r{tag is required})
+    end
+  end
+
+  describe 'locating a VM across endpoints' do
+    let(:other) { FakeProvider.new('300' => []) }
+    let(:two) { [[endpoint, provider], [endpoint.merge('name' => 'other'), other]] }
+
+    it 'finds a VM on the second endpoint and says which' do
+      out = described_class.create(two, { 'tag' => 't', 'vms' => [{ 'certname' => 'c', 'vm_id' => '300' }] }, now)['results']
+      expect(out['c']['endpoint']).to eq('other')
+      expect(other.calls.first.first).to eq(:create)
+    end
+
+    it 'refuses a VM found on two endpoints' do
+      other.snaps['100'] = []
+      out = described_class.create(two, { 'tag' => 't', 'vms' => vms.take(1) }, now)['results']
+      expect(out['a.example.com']['_error']['kind']).to eq('pe_snapshot/ambiguous_vm')
+      expect(provider.calls + other.calls).to be_empty
+    end
+
+    it 'stops when an endpoint cannot be asked, since it might hold the VM' do
+      allow(provider).to receive(:resolve).and_raise(PeSnapshot::Error.new('api_unreachable', 'down'))
+      out = described_class.create(two, { 'tag' => 't', 'vms' => [{ 'certname' => 'c', 'vm_id' => '300' }] }, now)['results']
+      expect(out['c']['_error']['kind']).to eq('pe_snapshot/api_unreachable')
+      expect(other.calls).to be_empty
+    end
+
+    it 'names every endpoint it tried when the VM is nowhere' do
+      out = described_class.list(two, { 'vms' => [{ 'certname' => 'c', 'vm_id' => '999' }] }, now)['results']
+      expect(out['c']['_error']['msg']).to include('lab, other')
     end
   end
 
@@ -99,13 +128,13 @@ describe PeSnapshot::Actions do
     end
 
     it 'deletes only managed snapshots with the tag' do
-      out = described_class.delete(provider, endpoint, { 'tag' => 'run1', 'vms' => vms.take(1) }, now)['results']
+      out = described_class.delete(pool, { 'tag' => 'run1', 'vms' => vms.take(1) }, now)['results']
       expect(out['a.example.com']['deleted']).to eq(['pes-aaaaaaaa-1'])
       expect(provider.snaps['100'].map { |s| s['name'] }).to eq(['pes-bbbbbbbb-1', 'pes-handmade', 'before-upgrade'])
     end
 
     it 'succeeds when there is nothing to delete' do
-      out = described_class.delete(provider, endpoint, { 'tag' => 'gone', 'vms' => vms.take(1) }, now)['results']
+      out = described_class.delete(pool, { 'tag' => 'gone', 'vms' => vms.take(1) }, now)['results']
       expect(out['a.example.com']['deleted']).to eq([])
     end
   end
@@ -114,18 +143,18 @@ describe PeSnapshot::Actions do
     it 'refuses an ambiguous tag' do
       provider.snaps['100'] << managed_snap('pes-aaaaaaaa-1', 'run1', 1, 0)
       provider.snaps['100'] << managed_snap('pes-aaaaaaaa-2', 'run1', 2, 0)
-      out = described_class.restore(provider, endpoint, { 'tag' => 'run1', 'vms' => vms.take(1) }, now)['results']
+      out = described_class.restore(pool, { 'tag' => 'run1', 'vms' => vms.take(1) }, now)['results']
       expect(out['a.example.com']['_error']['kind']).to eq('pe_snapshot/ambiguous_snapshot')
       expect(provider.calls).to be_empty
     end
 
     it 'refuses more than one VM' do
-      expect { described_class.restore(provider, endpoint, { 'tag' => 'run1', 'vms' => vms }, now) }.to raise_error(PeSnapshot::Error, %r{exactly one})
+      expect { described_class.restore(pool, { 'tag' => 'run1', 'vms' => vms }, now) }.to raise_error(PeSnapshot::Error, %r{exactly one})
     end
 
     it 'rolls back the single match' do
       provider.snaps['100'] << managed_snap('pes-aaaaaaaa-1', 'run1', 1, 0)
-      described_class.restore(provider, endpoint, { 'tag' => 'run1', 'vms' => vms.take(1) }, now)
+      described_class.restore(pool, { 'tag' => 'run1', 'vms' => vms.take(1) }, now)
       expect(provider.calls).to eq([[:restore, '100', 'pes-aaaaaaaa-1', true]])
     end
   end
@@ -133,7 +162,7 @@ describe PeSnapshot::Actions do
   describe 'list' do
     it 'marks expired snapshots and buckets their age' do
       provider.snaps['100'] << managed_snap('pes-aaaaaaaa-1', 'run1', now.to_i - 7200, now.to_i - 60)
-      snap = described_class.list(provider, endpoint, { 'vms' => vms.take(1) }, now)['results']['a.example.com']['snapshots'].first
+      snap = described_class.list(pool, { 'vms' => vms.take(1) }, now)['results']['a.example.com']['snapshots'].first
       expect(snap).to include('state' => 'expired', 'age_bucket' => '1h_24h')
     end
   end
