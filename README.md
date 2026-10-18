@@ -133,6 +133,8 @@ With `context: true` the runbook's `run_id` becomes the tag, so a later `pe_snap
 }
 ```
 
+The fact first reaches PuppetDB on the second agent run after the class is applied, because facts are collected before the run writes `target.json`. Until then the plans report the node as `pe_snapshot/unmapped`.
+
 The snapshot list comes from a marker file that the plans write on the target. The sweep doesn't update it, so the fact drops entries once they're past expiry.
 
 `pe_snapshot_proxy`, on a proxy: each endpoint's `status`, and every managed snapshot with its `certname`, `vm_id`, `state` (`active` or `expired`) and `age_bucket`. This is the authoritative list.
