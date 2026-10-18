@@ -2,76 +2,142 @@
 definition_version: 1
 uid: pe-snapshot
 title: Snapshots
-description: Hypervisor snapshots taken by pe_snapshot, as each proxy last listed them.
-variables: [pe]
+description: Hypervisor snapshots taken by pe_snapshot, as each proxy last listed
+  them.
+variables:
+- pe
 panels:
-  - title: Active Snapshots
-    type: stat
-    width: 6
-    unit: short
-    description: Managed snapshots that have not reached their expiry.
-    targets:
-      - expr: 'sum(pe_snapshot_snapshots{state="active", alias=~"$pe"}) or vector(0)'
-    thresholds:
-      - colour: neutral
-  - title: Expired, Awaiting Sweep
-    type: stat
-    width: 6
-    unit: short
-    description: Past expiry and still present. Normal for up to one agent interval on the proxy.
-    targets:
-      - expr: 'sum(pe_snapshot_snapshots{state="expired", alias=~"$pe"}) or vector(0)'
-    thresholds:
-      - colour: good
-      - colour: warning
-        value: 1
-  - title: Endpoints In Error
-    type: stat
-    width: 6
-    unit: short
-    targets:
-      - expr: 'sum(pe_snapshot_endpoints{status="error", alias=~"$pe"}) or vector(0)'
-    thresholds:
-      - colour: good
-      - colour: critical
-        value: 1
-  - title: Unmapped Nodes
-    type: stat
-    width: 6
-    unit: short
-    description: Nodes with the pe_snapshot class that the plans can't reach, because provider, proxy, endpoint or vm_id is missing.
-    targets:
-      - expr: 'sum(pe_snapshot_nodes{mapping="unmapped", alias=~"$pe"}) or vector(0)'
-    thresholds:
-      - colour: neutral
-  - title: Snapshots Over Time
-    type: timeseries
-    width: 16
-    unit: short
-    targets:
-      - expr: 'sum by (state) (pe_snapshot_snapshots{alias=~"$pe"})'
-        legend: '{{state}}'
-  - title: Snapshots By Age
-    type: bargauge
-    width: 8
-    unit: short
-    targets:
-      - expr: 'sum by (age_bucket) (pe_snapshot_snapshots{alias=~"$pe"})'
-        legend: '{{age_bucket}}'
-        instant: true
-    thresholds:
-      - colour: neutral
-  - title: Endpoints
-    type: table
-    width: 12
-    targets:
-      - expr: 'sum by (endpoint, status) (pe_snapshot_endpoints{alias=~"$pe"})'
-        instant: true
-        format: table
-  - title: Nodes By Provider
-    type: table
-    width: 12
-    targets:
-      - expr: 'sum by (provider, mapping) (pe_snapshot_nodes{alias=~"$pe"})'
-        instant: true
-        format: table
+- title: Active Snapshots
+  type: stat
+  width: 6
+  unit: short
+  description: Managed snapshots that have not reached their expiry.
+  targets:
+  - expr: sum(pe_snapshot_snapshots{state="active", alias=~"$pe"}) or vector(0)
+  thresholds:
+  - colour: neutral
+- title: Expired, Awaiting Sweep
+  type: stat
+  width: 6
+  unit: short
+  description: Past expiry and still present. Normal for up to one agent interval
+    on the proxy.
+  targets:
+  - expr: sum(pe_snapshot_snapshots{state="expired", alias=~"$pe"}) or vector(0)
+  thresholds:
+  - colour: good
+  - colour: warning
+    value: 1
+- title: Endpoints In Error
+  type: stat
+  width: 6
+  unit: short
+  targets:
+  - expr: sum(pe_snapshot_endpoints{status="error", alias=~"$pe"}) or vector(0)
+  thresholds:
+  - colour: good
+  - colour: critical
+    value: 1
+- title: Unmapped Nodes
+  type: stat
+  width: 6
+  unit: short
+  description: Nodes with the pe_snapshot class that the plans can't reach, because
+    provider, proxy, endpoint or vm_id is missing.
+  targets:
+  - expr: sum(pe_snapshot_nodes{mapping="unmapped", alias=~"$pe"}) or vector(0)
+  thresholds:
+  - colour: neutral
+- title: Snapshots Over Time
+  type: timeseries
+  width: 16
+  unit: short
+  targets:
+  - expr: sum by (state) (pe_snapshot_snapshots{alias=~"$pe"})
+    legend: "{{state}}"
+- title: Snapshots By Age
+  type: bargauge
+  width: 8
+  unit: short
+  targets:
+  - expr: sum by (age_bucket) (pe_snapshot_snapshots{alias=~"$pe"})
+    legend: "{{age_bucket}}"
+    instant: true
+  thresholds:
+  - colour: neutral
+- title: Endpoints
+  type: table
+  width: 12
+  targets:
+  - expr: sum by (endpoint, status) (pe_snapshot_endpoints{alias=~"$pe"})
+    instant: true
+    format: table
+- title: Nodes By Provider
+  type: table
+  width: 12
+  targets:
+  - expr: sum by (provider, mapping) (pe_snapshot_nodes{alias=~"$pe"})
+    instant: true
+    format: table
+- title: Snapshots By Node
+  type: table
+  width: 24
+  height: 10
+  description: Every managed snapshot, as its proxy last listed it. Comes from the
+    pe_snapshot_detail custom metric, refreshed every five minutes.
+  targets:
+  - expr: label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(puppet_custom_pe_snapshot_detail{alias=~"$pe"},
+      "node", "$1", "value", `(?:[^|]*\|){0}([^|]*).*`), "endpoint", "$1", "value",
+      `(?:[^|]*\|){1}([^|]*).*`), "tag", "$1", "value", `(?:[^|]*\|){2}([^|]*).*`),
+      "snapshot", "$1", "value", `(?:[^|]*\|){3}([^|]*).*`), "state", "$1", "value",
+      `(?:[^|]*\|){4}([^|]*).*`), "age_bucket", "$1", "value", `(?:[^|]*\|){5}([^|]*).*`),
+      "expires", "$1", "value", `(?:[^|]*\|){6}([^|]*).*`)
+    instant: true
+    format: table
+  transformations:
+  - id: filterFieldsByName
+    options:
+      include:
+        pattern: "^(node|endpoint|tag|snapshot|state|age_bucket|expires)$"
+  - id: organize
+    options:
+      renameByName:
+        node: Node
+        endpoint: Endpoint
+        tag: Tag
+        snapshot: Snapshot
+        state: State
+        age_bucket: Age
+        expires: Expires
+      indexByName:
+        node: 0
+        endpoint: 1
+        tag: 2
+        snapshot: 3
+        state: 4
+        age_bucket: 5
+        expires: 6
+- title: Unmapped Nodes
+  type: table
+  width: 24
+  height: 8
+  description: Nodes with the pe_snapshot class that the plans cannot reach. Set provider,
+    proxy, endpoint or vm_id for them in Hiera.
+  targets:
+  - expr: label_replace(puppet_custom_pe_snapshot_unmapped{alias=~"$pe"}, "provider",
+      "$1", "value", "([^:]*):.*")
+    instant: true
+    format: table
+  transformations:
+  - id: filterFieldsByName
+    options:
+      include:
+        pattern: "^(certname|provider)$"
+  - id: organize
+    options:
+      renameByName:
+        certname: Node
+        provider: Provider
+      indexByName:
+        certname: 0
+        provider: 1

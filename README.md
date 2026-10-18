@@ -156,6 +156,8 @@ The collector is declarative (`files/pobs/collector.yaml`). Puppet Observability
 | `pe_snapshot_nodes` | `provider`, `mapping` | every node's `pe_snapshot.coverage` |
 | `pe_snapshot_nodes_with_snapshot` | | nodes whose `pe_snapshot.active` is true |
 
+The plugin can only count, so the board's two per-node tables, Snapshots By Node and Unmapped Nodes, come from two Puppet Observability custom metrics that `pe_snapshot::pobs` also declares: `puppet_custom_pe_snapshot_detail` (one series per snapshot) and `puppet_custom_pe_snapshot_unmapped` (one per unmapped node). Each is capped at 1,000 rows by Puppet Observability, and both need `observability::enable_custom_metrics` on the primary. Set `pe_snapshot::pobs::node_tables: false` to leave them out.
+
 The alerts are `PeSnapshotExpiredNotSwept` (warning, 75 minutes, which allows for the fact lagging the sweep by one agent run), `PeSnapshotEndpointUnreachable` (warning, 1 hour) and `PeSnapshotOlderThanAWeek` (info). The Snapshots board is in its own Snapshots folder.
 
 Check a change to the plugin before shipping it, with Puppet Observability's own checker:

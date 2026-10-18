@@ -120,19 +120,33 @@ observability::enable_collector_plugins is true. The collector counts the
 pe_snapshot facts in PuppetDB, and the board and rules reach the dashboard
 node on its next run. Makes no change to Puppet Observability itself.
 
+The plugin can only count, so the board's per-node tables come from two
+Puppet Observability custom metrics instead, one series per snapshot and one
+per unmapped node. Each is capped at 1,000 rows by Puppet Observability.
+They need observability::enable_custom_metrics on the primary.
+
 #### Parameters
 
 The following parameters are available in the `pe_snapshot::pobs` class:
 
 * [`ensure`](#-pe_snapshot--pobs--ensure)
+* [`node_tables`](#-pe_snapshot--pobs--node_tables)
 
 ##### <a name="-pe_snapshot--pobs--ensure"></a>`ensure`
 
 Data type: `Enum['present', 'absent']`
 
-absent removes the collector, board and rules.
+absent removes the collector, board, rules and custom metrics.
 
 Default value: `'present'`
+
+##### <a name="-pe_snapshot--pobs--node_tables"></a>`node_tables`
+
+Data type: `Boolean`
+
+Declare the custom metrics behind the per-node tables.
+
+Default value: `true`
 
 ### <a name="pe_snapshot--proxy"></a>`pe_snapshot::proxy`
 
