@@ -30,6 +30,18 @@ describe 'pe_snapshot' do
     it { expect(target_config).to include('provider' => 'proxmox', 'vm_id' => 'abc-1') }
   end
 
+  context 'on Windows on Proxmox, where facter says physical but hypervisors says kvm' do
+    let(:facts) do
+      base.merge('virtual' => 'physical', 'hypervisors' => { 'kvm' => {} }, 'os' => { 'family' => 'windows' },
+                 'dmi' => { 'manufacturer' => 'Proxmox distribution of EDK II', 'product' => { 'uuid' => 'CCD7' } })
+    end
+
+    it 'maps to proxmox' do
+      config = JSON.parse(catalogue.resource('File', 'C:/ProgramData/PuppetLabs/pe_snapshot/target.json')[:content])
+      expect(config).to include('provider' => 'proxmox', 'vm_id' => 'ccd7')
+    end
+  end
+
   context 'on real hardware' do
     let(:facts) { base.merge('virtual' => 'physical', 'dmi' => { 'manufacturer' => 'Dell Inc.', 'product' => { 'uuid' => 'X' } }) }
 

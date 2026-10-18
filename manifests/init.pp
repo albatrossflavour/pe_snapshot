@@ -34,15 +34,22 @@ class pe_snapshot (
   Optional[String[1]] $vm_id = undef,
   Hash[String[1], Pattern[/\A[a-z0-9_]+\z/]] $virtual_map = {},
 ) {
-  # Facter reports physical for KVM guests on images without virt-what (seen
-  # on Rocky 9 and 10), while DMI still names the hypervisor.
-  $virtual = $facts['virtual'] ? {
-    'physical' => $facts.dig('dmi', 'manufacturer') ? {
-      'QEMU'         => 'kvm',
-      'VMware, Inc.' => 'vmware',
-      default        => 'physical',
-    },
-    default    => $facts['virtual'],
+  # Facter can report physical for a guest: Rocky 9 and 10 images without
+  # virt-what, and Windows on Proxmox. Its hypervisors fact (Windows: kvm) or
+  # the DMI manufacturer (Rocky: QEMU) still names the hypervisor.
+  $virtual = if $facts['virtual'] == 'physical' {
+    $from_hypervisors = ($facts['hypervisors'].lest || { {} }).keys.filter |$h| { $h in ['kvm', 'vmware'] }
+    if !$from_hypervisors.empty {
+      $from_hypervisors[0]
+    } else {
+      $facts.dig('dmi', 'manufacturer') ? {
+        'QEMU'         => 'kvm',
+        'VMware, Inc.' => 'vmware',
+        default        => 'physical',
+      }
+    }
+  } else {
+    $facts['virtual']
   }
   $detected_provider = if $facts['ec2_metadata'] {
     'aws'
