@@ -139,6 +139,31 @@ The snapshot list comes from a marker file that the plans write on the target. T
 
 `pe_snapshot_proxy`, on a proxy: each endpoint's `status`, and every managed snapshot with its `certname`, `vm_id`, `state` (`active` or `expired`) and `age_bucket`. This is the authoritative list.
 
+## Puppet Observability
+
+`pe_snapshot::pobs` ships a Puppet Observability collector plugin, with a board and alert rules. Declare it on the primary, where `observability::enable_collector_plugins` is true:
+
+```puppet
+include pe_snapshot::pobs
+```
+
+The collector is declarative (`files/pobs/collector.yaml`). Puppet Observability counts the pe_snapshot facts in PuppetDB with its own code, so no pe_snapshot code runs in the daemon, and no family has a series per node:
+
+| Family | Labels | From |
+| --- | --- | --- |
+| `pe_snapshot_snapshots` | `endpoint`, `state`, `age_bucket` | each proxy's `pe_snapshot_proxy.snapshots` |
+| `pe_snapshot_endpoints` | `endpoint`, `status` | each proxy's `pe_snapshot_proxy.endpoints` |
+| `pe_snapshot_nodes` | `provider`, `mapping` | every node's `pe_snapshot.coverage` |
+| `pe_snapshot_nodes_with_snapshot` | | nodes whose `pe_snapshot.active` is true |
+
+The alerts are `PeSnapshotExpiredNotSwept` (warning, 75 minutes, which allows for the fact lagging the sweep by one agent run), `PeSnapshotEndpointUnreachable` (warning, 1 hour) and `PeSnapshotOlderThanAWeek` (info). The Snapshots board is in its own Snapshots folder.
+
+Check a change to the plugin before shipping it, with Puppet Observability's own checker:
+
+```sh
+/opt/puppetlabs/puppet/bin/ruby <observability module>/files/pobs_ctl.rb plugin check files/pobs --name pe_snapshot
+```
+
 ## Limits
 
 - A VM id that matches more than one VM is refused with `pe_snapshot/ambiguous_vm`. Clones can keep their source's BIOS UUID (vCenter asks whether to keep it), and guessing could snapshot or restore the wrong machine. Set `pe_snapshot::vm_id` for those nodes.

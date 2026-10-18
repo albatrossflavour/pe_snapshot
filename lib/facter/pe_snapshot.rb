@@ -28,6 +28,8 @@ Facter.add(:pe_snapshot) do
       'state' => live.empty? ? 'none' : 'active',
       'age_bucket' => oldest ? PeSnapshot.age_bucket(now - oldest) : 'none',
       'snapshots' => live,
+      # For the POBS plugin: provider and whether the plans can reach this node.
+      'coverage' => "#{(target || {})['provider'] || 'none'}:#{(target || {})['mapped'] ? 'mapped' : 'unmapped'}",
     )
   end
 end

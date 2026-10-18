@@ -1,0 +1,20 @@
+---
+# pe_snapshot's POBS collector. Counts only, from the pe_snapshot facts in
+# PuppetDB: no per-node series, and no code of ours runs in the daemon.
+contract_version: 2
+families:
+  - name: pe_snapshot_snapshots
+    help: Managed snapshots on every proxy's endpoints, by endpoint, state and age
+    query: { count_values: 'pe_snapshot_proxy.snapshots.*.summary' }
+    labels: { split: ':', names: [endpoint, state, age_bucket] }
+  - name: pe_snapshot_endpoints
+    help: Snapshot endpoints by whether their proxy could list them on its last run
+    query: { count_values: 'pe_snapshot_proxy.endpoints.*.health' }
+    labels: { split: ':', names: [endpoint, status] }
+  - name: pe_snapshot_nodes
+    help: Nodes with the pe_snapshot class, by provider and whether the plans can reach them
+    query: { count_values: 'pe_snapshot.coverage' }
+    labels: { split: ':', names: [provider, mapping] }
+  - name: pe_snapshot_nodes_with_snapshot
+    help: Nodes whose own marker records an unexpired snapshot
+    query: { count: { 'pe_snapshot.active': true } }

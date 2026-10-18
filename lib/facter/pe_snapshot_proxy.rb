@@ -25,10 +25,12 @@ Facter.add(:pe_snapshot_proxy) do
             PeSnapshot::Actions.managed(provider, vm, now).map { |s| s.merge('endpoint' => name, 'vm_id' => vm['vm_id']) }
           }.flatten
         end
-        snapshots.concat(found)
-        endpoints << { 'name' => name, 'provider' => provider_name, 'status' => 'ok', 'error' => nil, 'count' => found.size }
+        # summary and health are colon-joined so the POBS plugin can count
+        # them with one count_values each and split them into labels.
+        snapshots.concat(found.map { |f| f.merge('summary' => "#{name}:#{f['state']}:#{f['age_bucket']}") })
+        endpoints << { 'name' => name, 'provider' => provider_name, 'status' => 'ok', 'error' => nil, 'count' => found.size, 'health' => "#{name}:ok" }
       rescue StandardError => e # Timeout::Error included
-        endpoints << { 'name' => name, 'provider' => provider_name, 'status' => 'error', 'error' => e.message.to_s[0, 300], 'count' => nil }
+        endpoints << { 'name' => name, 'provider' => provider_name, 'status' => 'error', 'error' => e.message.to_s[0, 300], 'count' => nil, 'health' => "#{name}:error" }
       end
     end
     { 'endpoints' => endpoints, 'snapshots' => snapshots }

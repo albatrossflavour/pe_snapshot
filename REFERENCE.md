@@ -7,6 +7,7 @@
 ### Classes
 
 * [`pe_snapshot`](#pe_snapshot): Maps this node to the hypervisor endpoint that can snapshot it.
+* [`pe_snapshot::pobs`](#pe_snapshot--pobs): Ships pe_snapshot's collector, board and alert rules as a Puppet Observability plugin.
 * [`pe_snapshot::proxy`](#pe_snapshot--proxy): Configures a node to talk to hypervisor APIs for pe_snapshot, and sweeps expired snapshots.
 
 ### Functions
@@ -111,6 +112,27 @@ Maps values of the virtual fact to a provider. kvm can't tell Proxmox from
 plain libvirt, so set provider in Hiera where the default is wrong.
 
 Default value: `{}`
+
+### <a name="pe_snapshot--pobs"></a>`pe_snapshot::pobs`
+
+Declare on the PE primary that runs Puppet Observability, where
+observability::enable_collector_plugins is true. The collector counts the
+pe_snapshot facts in PuppetDB, and the board and rules reach the dashboard
+node on its next run. Makes no change to Puppet Observability itself.
+
+#### Parameters
+
+The following parameters are available in the `pe_snapshot::pobs` class:
+
+* [`ensure`](#-pe_snapshot--pobs--ensure)
+
+##### <a name="-pe_snapshot--pobs--ensure"></a>`ensure`
+
+Data type: `Enum['present', 'absent']`
+
+absent removes the collector, board and rules.
+
+Default value: `'present'`
 
 ### <a name="pe_snapshot--proxy"></a>`pe_snapshot::proxy`
 

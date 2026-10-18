@@ -1,0 +1,39 @@
+---
+pe_snapshot:
+  # The proxy fact is gathered before the run that sweeps, so PuppetDB shows an
+  # expired snapshot for up to one agent interval after it's gone. 75 minutes
+  # is two and a half 30-minute intervals.
+  PeSnapshotExpiredNotSwept:
+    expr: 'sum by (alias, endpoint) (pe_snapshot_snapshots{state="expired"}) > 0'
+    for: 75m
+    labels:
+      severity: warning
+    annotations:
+      summary: 'Expired snapshots on {{ $labels.endpoint }} are not being deleted'
+      description: >-
+        Snapshots past their expiry are still on endpoint {{ $labels.endpoint }}. Each delta
+        disk keeps growing until it goes. Check the proxy's agent runs for the
+        Exec[pe_snapshot sweep {{ $labels.endpoint }}] output, and the pe_snapshot_proxy
+        fact on the proxy for the error.
+  PeSnapshotEndpointUnreachable:
+    expr: 'sum by (alias, endpoint) (pe_snapshot_endpoints{status="error"}) > 0'
+    for: 1h
+    labels:
+      severity: warning
+    annotations:
+      summary: 'A proxy cannot list snapshots on {{ $labels.endpoint }}'
+      description: >-
+        The proxy for endpoint {{ $labels.endpoint }} failed to list snapshots on its last
+        agent run, so expired snapshots there are not being swept and new ones may fail.
+        The error is in the pe_snapshot_proxy fact on the proxy (endpoints[].error).
+  PeSnapshotOlderThanAWeek:
+    expr: 'sum by (alias, endpoint) (pe_snapshot_snapshots{age_bucket="gt_7d"}) > 0'
+    for: 1h
+    labels:
+      severity: info
+    annotations:
+      summary: 'Snapshots older than a week on {{ $labels.endpoint }}'
+      description: >-
+        Managed snapshots on {{ $labels.endpoint }} are more than seven days old. That only
+        happens with allow_no_expiry or a max_retention_hours above 168. Long-lived
+        snapshots cost disk and slow the VM; check they are still wanted.
