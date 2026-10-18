@@ -158,26 +158,26 @@ The proxy fact is authoritative. The target marker can go stale when a snapshot 
 
 ## POBS collector plugin
 
-`pe_snapshot::pobs`, declared on the primary, places `files/pobs/pe_snapshot.rb` and its `boards/`, `rules/` and runbook entries in the POBS plugin directory. It needs `enable_collector_plugins` on, and makes no other change to POBS.
+`pe_snapshot::pobs`, declared on the primary, ships `files/pobs` through `observability::plugin`. It needs `enable_collector_plugins` on, and makes no change to POBS.
 
-The plugin uses contract version 2 and polls with `count_values` only:
+The collector is declarative (`collector.yaml`, contract version 2), so POBS counts the facts with its own code and no pe_snapshot code runs in the daemon. The fleet query only does equality counts, so the facts carry colon-joined fields that one `count_values` each splits into labels:
 
-| Family | Source |
-| --- | --- |
-| `pe_snapshot_snapshots{state}` | `pe_snapshot_proxy.snapshots.*.state` |
-| `pe_snapshot_snapshots_by_age{age_bucket}` | `pe_snapshot_proxy.snapshots.*.age_bucket` |
-| `pe_snapshot_endpoints{status}` | `pe_snapshot_proxy.endpoints.*.status` |
-| `pe_snapshot_nodes_with_snapshot` | `count('pe_snapshot.active' => true)` |
+| Family | Labels | Fact field |
+| --- | --- | --- |
+| `pe_snapshot_snapshots` | `endpoint`, `state`, `age_bucket` | `pe_snapshot_proxy.snapshots.*.summary` |
+| `pe_snapshot_endpoints` | `endpoint`, `status` | `pe_snapshot_proxy.endpoints.*.health` |
+| `pe_snapshot_nodes` | `provider`, `mapping` | `pe_snapshot.coverage` |
+| `pe_snapshot_nodes_with_snapshot` | | `count('pe_snapshot.active' => true)` |
 
-Bounded label sets, no per-node series. Alert rules: `PeSnapshotExpiredNotSwept` (expired count above zero for longer than two agent intervals), `PeSnapshotEndpointUnreachable`, `PeSnapshotOldSnapshots` (any in `gt_7d`). One small board.
+Bounded label sets, no per-node series. Alert rules: `PeSnapshotExpiredNotSwept` (75 minutes, since the proxy fact lags the sweep by one agent run), `PeSnapshotEndpointUnreachable` and `PeSnapshotOlderThanAWeek`. One board, in its own Snapshots folder.
 
-Anything the contract can't express gets logged as a finding against the plugin contract, not worked around in POBS.
+Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules loaded in Prometheus, the board was provisioned, and every panel query returned the lab's real numbers. The board has not been checked visually.
 
 ## Build order
 
 1. Skeleton, the `pe_snapshot` class and fact, proxy class with credential files, the provider interface, the Proxmox provider, tasks, plans, sweep. Proven on the lab Proxmox VMs end to end.
 2. GCE provider, proven on the counterweight nodes.
-3. POBS plugin, boards and rules, proven on the lab dashboard.
+3. POBS plugin, boards and rules, proven on the lab dashboard (done 2026-10-19).
 4. vSphere, libvirt, AWS and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
 
 ## Validation
