@@ -24,6 +24,18 @@ describe 'pe_snapshot' do
     it { expect(target_config).to include('endpoint' => ['esx01', 'esx02'], 'mapped' => true) }
   end
 
+  context 'on a KVM guest that facter calls physical' do
+    let(:facts) { base.merge('virtual' => 'physical', 'dmi' => { 'manufacturer' => 'QEMU', 'product' => { 'uuid' => 'ABC-1' } }) }
+
+    it { expect(target_config).to include('provider' => 'proxmox', 'vm_id' => 'abc-1') }
+  end
+
+  context 'on real hardware' do
+    let(:facts) { base.merge('virtual' => 'physical', 'dmi' => { 'manufacturer' => 'Dell Inc.', 'product' => { 'uuid' => 'X' } }) }
+
+    it { expect(target_config['provider']).to be_nil }
+  end
+
   context 'with no proxy' do
     let(:facts) { base.merge('virtual' => 'kvm') }
 

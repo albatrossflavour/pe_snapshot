@@ -34,12 +34,22 @@ class pe_snapshot (
   Optional[String[1]] $vm_id = undef,
   Hash[String[1], Pattern[/\A[a-z0-9_]+\z/]] $virtual_map = {},
 ) {
+  # Facter reports physical for KVM guests on images without virt-what (seen
+  # on Rocky 9 and 10), while DMI still names the hypervisor.
+  $virtual = $facts['virtual'] ? {
+    'physical' => $facts.dig('dmi', 'manufacturer') ? {
+      'QEMU'         => 'kvm',
+      'VMware, Inc.' => 'vmware',
+      default        => 'physical',
+    },
+    default    => $facts['virtual'],
+  }
   $detected_provider = if $facts['ec2_metadata'] {
     'aws'
   } elsif $facts['az_metadata'] {
     'azure'
   } else {
-    $virtual_map[$facts['virtual']]
+    $virtual_map[$virtual]
   }
   $_provider = $provider.lest || { $detected_provider }
 
