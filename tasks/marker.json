@@ -1,0 +1,28 @@
+{
+  "description": "Add or remove a snapshot in the target node's marker file, read by the pe_snapshot fact. Run on the target by the plans.",
+  "input_method": "stdin",
+  "supports_noop": false,
+  "private": true,
+  "parameters": {
+    "action": {
+      "description": "add records the snapshot, remove forgets it.",
+      "type": "Enum[add, remove]"
+    },
+    "name": {
+      "description": "Snapshot name.",
+      "type": "Optional[String[1]]"
+    },
+    "tag": {
+      "description": "Snapshot tag. On remove, forgets every entry with it.",
+      "type": "Optional[String[1]]"
+    },
+    "created": {
+      "description": "Creation time, epoch seconds.",
+      "type": "Optional[Integer]"
+    },
+    "expires": {
+      "description": "Expiry time, epoch seconds. 0 means no expiry.",
+      "type": "Optional[Integer]"
+    }
+  }
+}

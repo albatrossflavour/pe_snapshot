@@ -1,0 +1,39 @@
+{
+  "description": "Roll one VM back to a managed snapshot. Run on the proxy, through the pe_snapshot::restore plan.",
+  "input_method": "stdin",
+  "supports_noop": false,
+  "files": [
+    "pe_snapshot/lib/pe_snapshot/"
+  ],
+  "parameters": {
+    "provider": {
+      "description": "Provider name. Checked against the endpoint, which is authoritative.",
+      "type": "Optional[String[1]]"
+    },
+    "endpoint": {
+      "description": "Name of an endpoint configured on this proxy by pe_snapshot::proxy.",
+      "type": "Pattern[/\\A[a-z0-9_]+\\z/]"
+    },
+    "vms": {
+      "description": "The VMs to act on, as certname and the vm_id from the pe_snapshot fact.",
+      "type": "Array[Struct[{certname => String[1], vm_id => String[1]}], 1]"
+    },
+    "credentials": {
+      "description": "Credentials to merge with the proxy credentials file. A key in both is an error.",
+      "type": "Optional[Hash]",
+      "sensitive": true
+    },
+    "tag": {
+      "description": "Tag of the snapshot to restore.",
+      "type": "String[1]"
+    },
+    "name": {
+      "description": "Snapshot name, needed when more than one snapshot has the tag.",
+      "type": "Optional[String[1]]"
+    },
+    "start": {
+      "description": "Start the VM after the rollback. Default true.",
+      "type": "Optional[Boolean]"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+---
+lookup_options:
+  pe_snapshot::proxy::credentials:
+    convert_to: 'Sensitive'
+
+pe_snapshot::virtual_map:
+  kvm: proxmox
+  vmware: vsphere
+  gce: gce
