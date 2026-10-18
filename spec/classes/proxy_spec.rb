@@ -11,6 +11,7 @@ describe 'pe_snapshot::proxy' do
     let(:params) { { 'endpoints' => endpoints, 'credentials' => { 'lab_pve' => { 'token_id' => 'a', 'token_secret' => 'b' } } } }
 
     it { is_expected.to compile.with_all_deps }
+    it { is_expected.to contain_class('pe_snapshot') }
 
     it 'writes the endpoint config with options and retention settings merged in' do
       config = JSON.parse(catalogue.resource('File', "#{dir}/lab_pve.json")[:content])
@@ -65,4 +66,13 @@ describe 'proxy.example.com', type: :host do
   it 'resolves the lookup, then converts it, into Sensitive content' do
     is_expected.to contain_file('/etc/puppetlabs/pe_snapshot/endpoints/lab_pve.creds.json').with_content(sensitive('{"token_id":"from-kms"}'))
   end
+end
+
+# The primary in the lab gets both classes from profile::soe::snapshot, which
+# is how the duplicate File[/etc/puppetlabs/pe_snapshot] was found.
+describe 'both.example.com', type: :host do
+  let(:facts) { { 'os' => { 'family' => 'RedHat' }, 'virtual' => 'kvm', 'dmi' => { 'product' => { 'uuid' => 'abc' } } } }
+  let(:pre_condition) { "include pe_snapshot\ninclude pe_snapshot::proxy" }
+
+  it { is_expected.to compile.with_all_deps }
 end

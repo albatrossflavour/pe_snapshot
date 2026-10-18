@@ -58,9 +58,9 @@ class pe_snapshot::proxy (
     default   => $credentials,
   }
 
-  file { $dir:
-    ensure => directory,
-  }
+  # pe_snapshot owns the config directory, and a proxy is a node like any other.
+  contain pe_snapshot
+
   # Purged so an endpoint removed from Hiera loses its credentials too.
   file { $endpoint_dir:
     ensure  => directory,
@@ -70,6 +70,7 @@ class pe_snapshot::proxy (
     recurse => true,
     purge   => true,
     force   => true,
+    require => File[$dir],
   }
 
   $endpoints.each |$ep| {
