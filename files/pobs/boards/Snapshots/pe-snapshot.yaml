@@ -60,8 +60,17 @@ panels:
   width: 8
   unit: short
   targets:
-  - expr: sum by (age_bucket) (pe_snapshot_snapshots{alias=~"$pe"})
-    legend: "{{age_bucket}}"
+  - expr: sum(pe_snapshot_snapshots{age_bucket="lt_1h", alias=~"$pe"}) or vector(0)
+    legend: Under 1 hour
+    instant: true
+  - expr: sum(pe_snapshot_snapshots{age_bucket="1h_24h", alias=~"$pe"}) or vector(0)
+    legend: 1 to 24 hours
+    instant: true
+  - expr: sum(pe_snapshot_snapshots{age_bucket="1d_7d", alias=~"$pe"}) or vector(0)
+    legend: 1 to 7 days
+    instant: true
+  - expr: sum(pe_snapshot_snapshots{age_bucket="gt_7d", alias=~"$pe"}) or vector(0)
+    legend: Over 7 days
     instant: true
   thresholds:
   - colour: neutral
@@ -91,6 +100,9 @@ panels:
         endpoint: 0
         status: 1
         Value: 2
+  column_widths:
+    Status: 90
+    Proxies: 90
 - title: Nodes By Provider
   type: table
   width: 12
@@ -113,6 +125,9 @@ panels:
         provider: 0
         mapping: 1
         Value: 2
+  column_widths:
+    Mapping: 110
+    Nodes: 90
 - title: Snapshots By Node
   type: table
   width: 24
