@@ -53,7 +53,7 @@ It implements:
 
 Rules a provider has to follow:
 
-- Use `PeSnapshot::HTTP` and the stdlib. No gems, because the tasks run under the agent's Ruby on whatever the proxy is.
+- Use `PeSnapshot::HTTP` and the stdlib. `request` is for JSON APIs. `raw` returns the response whatever its status, for XML or SOAP, and the vSphere and AWS providers show how to use it. No gems, because the tasks run under the agent's Ruby on whatever the proxy is.
 - Raise `PeSnapshot::Error` with a kind from [troubleshooting](docs/troubleshooting.md) where one fits. Never put a credential in a message or `details`.
 - Wait for the hypervisor's job to finish, honouring `task_timeout` from the endpoint (default 900 seconds), and raise `provider_timeout` past it.
 - Store the description pe_snapshot passes in, unchanged. It holds the metadata that marks a snapshot as managed.

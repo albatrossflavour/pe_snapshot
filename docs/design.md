@@ -22,7 +22,7 @@ A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed 
 
 Cloud providers snapshot disks, not VMs. A "snapshot" there is the set of disk snapshots sharing one name and tag, and restore is out of scope for them in v1 (it means replacing disks, not reverting). The plan says so instead of attempting it.
 
-Every provider uses Ruby stdlib only (`net/http`, `openssl`, `json`). AWS SigV4 and the GCE service-account JWT are signed by hand. libvirt shells out to `virsh -c qemu+ssh://` from the proxy.
+Every provider uses Ruby stdlib only (`net/http`, `openssl`, `json`, and `rexml` for the XML APIs of vSphere and EC2). AWS SigV4 and the GCE service-account JWT are signed by hand. libvirt shells out to `virsh -c qemu+ssh://` from the proxy.
 
 ## Mapping a node to its snapshot path
 

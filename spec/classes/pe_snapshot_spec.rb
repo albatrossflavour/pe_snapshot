@@ -68,6 +68,18 @@ describe 'pe_snapshot' do
     it { expect(target_config).to include('provider' => 'gce', 'vm_id' => 'australia-southeast1-b/web1') }
   end
 
+  context 'on a VMware guest' do
+    let(:facts) { base.merge('virtual' => 'vmware') }
+
+    it { expect(target_config).to include('provider' => 'vsphere', 'vm_id' => 'abc-1') }
+  end
+
+  context 'on a VMware guest that facter calls physical' do
+    let(:facts) { base.merge('virtual' => 'physical', 'dmi' => { 'manufacturer' => 'VMware, Inc.', 'product' => { 'uuid' => 'ABC-1' } }) }
+
+    it { expect(target_config).to include('provider' => 'vsphere', 'vm_id' => 'abc-1') }
+  end
+
   context 'on AWS, where virtual is kvm too' do
     let(:facts) { base.merge('virtual' => 'kvm', 'ec2_metadata' => { 'instance-id' => 'i-0abc' }) }
 

@@ -54,7 +54,7 @@ The `pe_snapshot` fact's `coverage` is `<provider>:unmapped` and the plans refus
 - **Everything is missing.** The class isn't declared, or the node has only had one agent run since it was. Facts are collected before the run writes `target.json`, so the fact first appears on the second run.
 - **`proxy` or `endpoint` is missing.** Nothing in Hiera sets `pe_snapshot::proxy` or `pe_snapshot::endpoint` for the node. These usually live at the location or network zone level.
 - **`provider` is missing.** The `virtual` fact isn't in `pe_snapshot::virtual_map`. Facter reports `physical` for some guests (Rocky 9 and 10 images without `virt-what`, Windows on Proxmox), and the class falls back to the `hypervisors` fact and then the DMI manufacturer. If neither names the hypervisor, set `pe_snapshot::provider`.
-- **`vm_id` is missing.** Proxmox uses `dmi.product.uuid` and GCE uses the `gce` fact. If the fact isn't there, set `pe_snapshot::vm_id` (the Proxmox vmid, or `<zone>/<instance>` for GCE).
+- **`vm_id` is missing.** Proxmox and vSphere use `dmi.product.uuid`, GCE uses the `gce` fact and AWS uses `ec2_metadata`. If the fact isn't there, set `pe_snapshot::vm_id`: the Proxmox vmid, the vSphere managed object id (`vm-1234`), `<zone>/<instance>` for GCE, or the instance id for AWS.
 
 ## A VM can't be found
 
