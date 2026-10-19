@@ -10,7 +10,7 @@
 # @param retention_hours Hours until the proxy's sweep deletes the snapshot. Defaults to the proxy's setting.
 # @param memory Include RAM state where the provider supports it.
 # @param quiesce Quiesce the guest filesystem where the provider supports it.
-# @param credentials Added to the proxy's credentials file. Not usable from a runbook, which is plain data.
+# @param credentials Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 # @param marker Record the snapshot on each target, for the target's pe_snapshot fact.
 # @return [ResultSet] Each ok value has name, tag, created, expires and pe_patch_report.
 plan pe_snapshot::create(
@@ -20,7 +20,7 @@ plan pe_snapshot::create(
   Optional[Integer[0]] $retention_hours = undef,
   Boolean $memory = false,
   Boolean $quiesce = false,
-  Optional[Sensitive[Hash]] $credentials = undef,
+  Sensitive[Hash] $credentials = Sensitive({}),
   Boolean $marker = true,
 ) {
   $_tag = pe_snapshot::tag($tag, $pe_patch_context)

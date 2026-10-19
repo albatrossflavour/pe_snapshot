@@ -20,6 +20,11 @@
 #   The provider's identity for this VM. Detected per provider: the SMBIOS
 #   uuid for proxmox, vsphere and libvirt, zone/name for gce, the instance id
 #   for aws, the resource id for azure.
+# @param restorable
+#   Whether pe_snapshot::restore may roll this node back. Defaults to false on
+#   PE infrastructure (any node with the pe_server_version fact), because
+#   rolling back the primary or a compiler revives revoked certificates and
+#   old secrets, and loses everything the CA and PuppetDB did since.
 # @param virtual_map
 #   Maps values of the virtual fact to a provider. kvm can't tell Proxmox from
 #   plain libvirt, so set provider in Hiera where the default is wrong.
@@ -33,6 +38,7 @@ class pe_snapshot (
   Optional[Variant[Pattern[/\A[a-z0-9_]+\z/], Array[Pattern[/\A[a-z0-9_]+\z/], 1]]] $endpoint = undef,
   Optional[String[1]] $vm_id = undef,
   Hash[String[1], Pattern[/\A[a-z0-9_]+\z/]] $virtual_map = {},
+  Boolean $restorable = $facts['pe_server_version'] =~ Undef,
 ) {
   # Facter can report physical for a guest: Rocky 9 and 10 images without
   # virt-what, and Windows on Proxmox. Its hypervisors fact (Windows: kvm) or
@@ -75,11 +81,12 @@ class pe_snapshot (
     default   => '/etc/puppetlabs/pe_snapshot',
   }
   $config = {
-    'provider' => $_provider,
-    'proxy'    => $proxy,
-    'endpoint' => $endpoint,
-    'vm_id'    => $_vm_id,
-    'mapped'   => [$_provider, $proxy, $endpoint, $_vm_id].all |$v| { $v =~ NotUndef },
+    'provider'   => $_provider,
+    'proxy'      => $proxy,
+    'endpoint'   => $endpoint,
+    'vm_id'      => $_vm_id,
+    'restorable' => $restorable,
+    'mapped'     => [$_provider, $proxy, $endpoint, $_vm_id].all |$v| { $v =~ NotUndef },
   }
 
   file { $dir:

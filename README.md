@@ -56,17 +56,24 @@ pe_snapshot::proxy::credentials:
 
 A credentials value can be a Hash, a JSON string, or a `Deferred` that returns one of those. A `Deferred` (for example a Vault lookup) resolves on the proxy at run time, so the secret is never in the catalog. The class writes each endpoint's credentials to a root-only file under `/etc/puppetlabs/pe_snapshot/endpoints/`.
 
+If something other than Puppet manages the secret, such as Vault Agent or CyberArk, have it write `/etc/puppetlabs/pe_snapshot/credentials.d/<endpoint>.json`, root-owned and `0600`. Puppet creates that directory and never touches its contents. The tasks read both files, and the plans' `credentials` parameter, for every call. A key supplied by more than one of them is an error.
+
+`verify_tls` defaults to true. Setting it to false sends the token to whatever answers at that address, so use `ca_file` for an internal CA instead and keep `verify_tls: false` for a lab you are happy to have intercepted.
+
 ### Proxmox
 
-Use an API token with `VM.Audit`, `VM.Snapshot`, `VM.Snapshot.Rollback`, `VM.PowerMgmt` and `Sys.Audit` on `/vms` and `/nodes`:
+Use a privilege-separated API token, granted on the VMs it may snapshot and nothing else:
 
 ```sh
-pveum role add PESnapshot --privs "VM.Audit,VM.Snapshot,VM.Snapshot.Rollback,VM.PowerMgmt,Sys.Audit"
+pveum role add PESnapshot --privs "VM.Audit,VM.Snapshot,VM.Snapshot.Rollback,VM.PowerMgmt"
 pveum user add pe_snapshot@pve
-pveum acl modify /vms --users pe_snapshot@pve --roles PESnapshot
-pveum acl modify /nodes --users pe_snapshot@pve --roles PESnapshot
-pveum user token add pe_snapshot@pve pe_snapshot --privsep 0
+pveum user token add pe_snapshot@pve pe_snapshot --privsep 1
+for id in <vmid> ...; do
+  pveum acl modify /vms/$id --users pe_snapshot@pve --tokens 'pe_snapshot@pve!pe_snapshot' --roles PESnapshot
+done
 ```
+
+`VM.PowerMgmt` is only for starting a VM after a restore. Nothing needs `Sys.Audit` or an ACL on `/nodes`, because a token can read the status of its own tasks. Granting per VM (or per pool, if your pools separate patchable VMs from infrastructure) keeps the PE primary, compilers and anything else you would never roll back out of the token's sight: a VM it can't see fails as `pe_snapshot/vm_not_found`. A new VM needs its ACL before it can be snapshotted.
 
 The credentials are `{"token_id": "pe_snapshot@pve!pe_snapshot", "token_secret": "..."}`. The VM is found by matching its SMBIOS UUID (`dmi.product.uuid`) against each VM's `smbios1` setting, or by setting `pe_snapshot::vm_id` to the vmid. Proxmox has no quiesce option. It freezes the guest filesystem through the QEMU guest agent whenever the agent is enabled on the VM.
 
@@ -166,6 +173,32 @@ Check a change to the plugin before shipping it, with Puppet Observability's own
 
 ```sh
 /opt/puppetlabs/puppet/bin/ruby <observability module>/files/pobs_ctl.rb plugin check files/pobs --name pe_snapshot
+```
+
+## Secrets
+
+pe_snapshot holds no secret machinery of its own. It takes credentials from Hiera (plain, eyaml or `Deferred`), from a root-only file an external agent writes, or from the plans' `credentials` parameter, and the proxy is the trust boundary.
+
+Where a hypervisor credential exists:
+
+| Copy | Notes |
+| --- | --- |
+| Hiera | eyaml ciphertext, or nothing at all with `Deferred` |
+| Compiled catalog and the proxy's cached catalog | The decrypted value, as Sensitive, unless it is `Deferred`. Anyone who can read the proxy's catalog or PuppetDB's catalog store can read it |
+| `/etc/puppetlabs/pe_snapshot/endpoints/<endpoint>.creds.json` | root `0600`, `backup => false` so no old copy lands in the clientbucket |
+| `/etc/puppetlabs/pe_snapshot/credentials.d/<endpoint>.json` | Only if an external agent writes it |
+| Backups and VM snapshots of the proxy | Including snapshots pe_snapshot itself takes, if the proxy is a target |
+| Orchestrator job records | Never. `credentials` is typed `Sensitive`, so the orchestrator lists it under `options.sensitive` and stores no value |
+
+The token can only snapshot what its hypervisor ACL lets it see, so scope it to the VMs you patch (see the Proxmox section). An unreadable credentials file is reported in the `pe_snapshot_proxy` fact by name and error class only, never with its content.
+
+PE infrastructure is not restorable by default. `pe_snapshot::restorable` defaults to false on any node with the `pe_server_version` fact, and the restore plan refuses a node whose fact does not say `restorable: true`. Rolling back a primary or compiler revives revoked certificates, old tokens and old Hiera data, and loses everything the CA and PuppetDB recorded since. Set `pe_snapshot::restorable: true` in that node's Hiera to override.
+
+To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke the token on the hypervisor first (`pveum user token remove`), then issue a new one. To watch who reads the files:
+
+```sh
+auditctl -w /etc/puppetlabs/pe_snapshot/endpoints -p r -k pe_snapshot_creds
+auditctl -w /etc/puppetlabs/pe_snapshot/credentials.d -p r -k pe_snapshot_creds
 ```
 
 ## Limits

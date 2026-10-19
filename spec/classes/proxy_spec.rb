@@ -19,6 +19,16 @@ describe 'pe_snapshot::proxy' do
                            'default_retention_hours' => 24, 'max_retention_hours' => 168, 'allow_no_expiry' => false)
     end
 
+    it 'leaves the external credentials directory unpurged' do
+      is_expected.to contain_file('/etc/puppetlabs/pe_snapshot/credentials.d').with(mode: '0700', owner: 'root')
+      expect(catalogue.resource('File', '/etc/puppetlabs/pe_snapshot/credentials.d')[:purge]).to be_nil
+    end
+
+    it 'keeps secrets out of the clientbucket' do
+      is_expected.to contain_file("#{dir}/lab_pve.json").with(backup: false)
+      is_expected.to contain_file("#{dir}/lab_pve.creds.json").with(backup: false)
+    end
+
     it 'writes credentials root-only and Sensitive' do
       is_expected.to contain_file("#{dir}/lab_pve.creds.json").with(mode: '0600', owner: 'root', show_diff: false)
                                                               .with_content(sensitive('{"token_id":"a","token_secret":"b"}'))

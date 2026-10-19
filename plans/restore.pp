@@ -9,24 +9,31 @@
 # @param tag Tag of the snapshot to restore.
 # @param snapshot_name Needed when more than one snapshot has the tag.
 # @param start Start the VM after the rollback.
-# @param credentials Added to the proxy's credentials file.
+# @param credentials Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 # @return [ResultSet] The ok value has name, tag and pe_patch_report.
 plan pe_snapshot::restore(
   TargetSpec $targets,
   String[1] $tag,
   Optional[String[1]] $snapshot_name = undef,
   Boolean $start = true,
-  Optional[Sensitive[Hash]] $credentials = undef,
+  Sensitive[Hash] $credentials = Sensitive({}),
 ) {
   $_targets = get_targets($targets)
   if $_targets.length != 1 {
     fail_plan("pe_snapshot::restore takes exactly one target, got ${_targets.length}", 'pe_snapshot/too_many_targets')
   }
 
+  # Fails closed: a node whose fact predates the restorable flag is refused
+  # too, until its next agent runs publish it.
+  $t = $_targets[0]
+  $fact = puppetdb_query("facts[value] { name = 'pe_snapshot' and certname = '${t.name}' }")[0].lest || { {} }
+  if $fact.dig('value', 'restorable') != true {
+    fail_plan("${t.name} is not restorable: its pe_snapshot fact has restorable ${fact.dig('value', 'restorable').lest || { 'unset' }}. PE infrastructure is refused by default; set pe_snapshot::restorable in Hiera to override.", 'pe_snapshot/not_restorable')
+  }
+
   $params = { 'tag' => $tag, 'name' => $snapshot_name, 'start' => $start }.filter |$k, $v| { $v =~ NotUndef }
   $values = run_plan('pe_snapshot::dispatch', 'targets' => $_targets, 'action' => 'restore', 'params' => $params, 'credentials' => $credentials)
 
-  $t = $_targets[0]
   $v = $values[$t.name]
   $value = if '_error' in $v { $v } else { $v + { 'pe_patch_report' => { 'restored' => $v['name'] } } }
   return(ResultSet.new([Result.new($t, $value)]))

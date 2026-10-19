@@ -63,6 +63,7 @@ The following parameters are available in the `pe_snapshot` class:
 * [`proxy`](#-pe_snapshot--proxy)
 * [`endpoint`](#-pe_snapshot--endpoint)
 * [`vm_id`](#-pe_snapshot--vm_id)
+* [`restorable`](#-pe_snapshot--restorable)
 * [`virtual_map`](#-pe_snapshot--virtual_map)
 
 ##### <a name="-pe_snapshot--provider"></a>`provider`
@@ -103,6 +104,17 @@ uuid for proxmox, vsphere and libvirt, zone/name for gce, the instance id
 for aws, the resource id for azure.
 
 Default value: `undef`
+
+##### <a name="-pe_snapshot--restorable"></a>`restorable`
+
+Data type: `Boolean`
+
+Whether pe_snapshot::restore may roll this node back. Defaults to false on
+PE infrastructure (any node with the pe_server_version fact), because
+rolling back the primary or a compiler revives revoked certificates and
+old secrets, and loses everything the CA and PuppetDB did since.
+
+Default value: `$facts['pe_server_version'] =~ Undef`
 
 ##### <a name="-pe_snapshot--virtual_map"></a>`virtual_map`
 
@@ -622,11 +634,11 @@ Default value: `false`
 
 ##### <a name="-pe_snapshot--create--credentials"></a>`credentials`
 
-Data type: `Optional[Sensitive[Hash]]`
+Data type: `Sensitive[Hash]`
 
-Added to the proxy's credentials file. Not usable from a runbook, which is plain data.
+Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 
-Default value: `undef`
+Default value: `Sensitive({})`
 
 ##### <a name="-pe_snapshot--create--marker"></a>`marker`
 
@@ -684,11 +696,11 @@ Default value: `undef`
 
 ##### <a name="-pe_snapshot--delete--credentials"></a>`credentials`
 
-Data type: `Optional[Sensitive[Hash]]`
+Data type: `Sensitive[Hash]`
 
-Added to the proxy's credentials file.
+Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 
-Default value: `undef`
+Default value: `Sensitive({})`
 
 ##### <a name="-pe_snapshot--delete--marker"></a>`marker`
 
@@ -726,11 +738,11 @@ Default value: `undef`
 
 ##### <a name="-pe_snapshot--list--credentials"></a>`credentials`
 
-Data type: `Optional[Sensitive[Hash]]`
+Data type: `Sensitive[Hash]`
 
-Added to the proxy's credentials file.
+Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 
-Default value: `undef`
+Default value: `Sensitive({})`
 
 ### <a name="pe_snapshot--restore"></a>`pe_snapshot::restore`
 
@@ -779,9 +791,9 @@ Default value: `true`
 
 ##### <a name="-pe_snapshot--restore--credentials"></a>`credentials`
 
-Data type: `Optional[Sensitive[Hash]]`
+Data type: `Sensitive[Hash]`
 
-Added to the proxy's credentials file.
+Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 
-Default value: `undef`
+Default value: `Sensitive({})`
 

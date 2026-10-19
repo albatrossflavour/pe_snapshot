@@ -73,6 +73,17 @@ class pe_snapshot::proxy (
     require => File[$dir],
   }
 
+  # For credentials written by something other than Puppet (Vault Agent,
+  # CyberArk, a script), as <endpoint>.json, root-owned and 0600. Puppet owns
+  # the directory but never its contents, so nothing here purges them.
+  file { "${dir}/credentials.d":
+    ensure  => directory,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0700',
+    require => File[$dir],
+  }
+
   $endpoints.each |$ep| {
     $config = ($ep - 'options') + $ep.get('options', {}) + {
       'default_retention_hours' => $default_retention_hours,
@@ -84,6 +95,7 @@ class pe_snapshot::proxy (
       owner   => 'root',
       group   => 'root',
       mode    => '0600',
+      backup  => false,
       content => stdlib::to_json_pretty($config),
     }
 
@@ -100,6 +112,7 @@ class pe_snapshot::proxy (
         group     => 'root',
         mode      => '0600',
         show_diff => false,
+        backup    => false,
         content   => $creds_content,
       }
     }

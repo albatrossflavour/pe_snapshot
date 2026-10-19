@@ -181,28 +181,51 @@ describe PeSnapshot do
 
   describe 'load_endpoint' do
     let(:dir) { Dir.mktmpdir }
+    let(:external) { Dir.mktmpdir }
+    let(:root_only) { instance_double(File::Stat, uid: 0, mode: 0o100600) }
 
     before(:each) do
       File.write(File.join(dir, 'lab.json'), JSON.generate('name' => 'lab', 'provider' => 'proxmox'))
       File.write(File.join(dir, 'lab.creds.json'), JSON.generate('token_id' => 'x'))
       allow(File).to receive(:stat).and_call_original
+      allow(File).to receive(:stat).with(%r{creds|#{external}}).and_return(root_only)
     end
 
-    after(:each) { FileUtils.rm_rf(dir) }
+    after(:each) { FileUtils.rm_rf([dir, external]) }
+
+    def load(extra = nil)
+      described_class.load_endpoint('lab', extra, dir, external)
+    end
 
     it 'refuses a key from both the file and the caller' do
-      allow(File).to receive(:stat).with(%r{creds}).and_return(instance_double(File::Stat, uid: 0, mode: 0o100600))
-      expect { described_class.load_endpoint('lab', { 'token_id' => 'y' }, dir) }.to raise_error(PeSnapshot::Error, %r{both})
+      expect { load('token_id' => 'y') }.to raise_error(PeSnapshot::Error, %r{supplied twice.*the caller: token_id})
     end
 
     it 'merges caller credentials that do not clash' do
-      allow(File).to receive(:stat).with(%r{creds}).and_return(instance_double(File::Stat, uid: 0, mode: 0o100600))
-      expect(described_class.load_endpoint('lab', { 'token_secret' => 's' }, dir)['credentials']).to eq('token_id' => 'x', 'token_secret' => 's')
+      expect(load('token_secret' => 's')['credentials']).to eq('token_id' => 'x', 'token_secret' => 's')
+    end
+
+    it 'merges a file an external agent wrote' do
+      File.write(File.join(external, 'lab.json'), JSON.generate('token_secret' => 'from-vault'))
+      expect(load['credentials']).to eq('token_id' => 'x', 'token_secret' => 'from-vault')
+    end
+
+    it 'refuses a key in both the Puppet file and the external file' do
+      File.write(File.join(external, 'lab.json'), JSON.generate('token_id' => 'z'))
+      expect { load }.to raise_error(PeSnapshot::Error, %r{again by the external file})
     end
 
     it 'refuses a credentials file others can read' do
       allow(File).to receive(:stat).with(%r{creds}).and_return(instance_double(File::Stat, uid: 0, mode: 0o100644))
-      expect { described_class.load_endpoint('lab', nil, dir) }.to raise_error(PeSnapshot::Error, %r{group or others})
+      expect { load }.to raise_error(PeSnapshot::Error, %r{group or others})
+    end
+
+    it 'never quotes a malformed credentials file' do
+      File.write(File.join(dir, 'lab.creds.json'), '{"token_id":"u","token_secret" "hunter2-secret"}')
+      expect { load }.to raise_error(PeSnapshot::Error) { |e|
+        expect(e.kind).to eq('pe_snapshot/unreadable_credentials')
+        expect(e.message + e.details.to_s).not_to include('hunter2')
+      }
     end
   end
 end

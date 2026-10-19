@@ -14,7 +14,15 @@ describe 'pe_snapshot' do
     let(:params) { { 'proxy' => 'puppet.example.com', 'endpoint' => 'lab_pve' } }
 
     it { is_expected.to compile.with_all_deps }
-    it { expect(target_config).to eq('provider' => 'proxmox', 'proxy' => 'puppet.example.com', 'endpoint' => 'lab_pve', 'vm_id' => 'abc-1', 'mapped' => true) }
+    it { expect(target_config).to eq('provider' => 'proxmox', 'proxy' => 'puppet.example.com', 'endpoint' => 'lab_pve', 'vm_id' => 'abc-1', 'restorable' => true, 'mapped' => true) }
+  end
+
+  context 'on PE infrastructure' do
+    let(:facts) { base.merge('virtual' => 'kvm', 'pe_server_version' => '2025.11.3') }
+
+    it 'is not restorable by default' do
+      expect(target_config['restorable']).to be(false)
+    end
   end
 
   context 'with a list of endpoints' do

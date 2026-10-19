@@ -7,7 +7,7 @@
 # @param tag Delete snapshots with this tag. Defaults to pe_patch_context's run_id.
 # @param snapshot_name Delete the snapshot with this name.
 # @param pe_patch_context Passed by a pe_patch::runbook step.
-# @param credentials Added to the proxy's credentials file.
+# @param credentials Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 # @param marker Remove the snapshot from each target's marker file.
 # @return [ResultSet] Each ok value has deleted, the names removed, and pe_patch_report.
 plan pe_snapshot::delete(
@@ -15,7 +15,7 @@ plan pe_snapshot::delete(
   Optional[String[1]] $tag = undef,
   Optional[String[1]] $snapshot_name = undef,
   Optional[Hash] $pe_patch_context = undef,
-  Optional[Sensitive[Hash]] $credentials = undef,
+  Sensitive[Hash] $credentials = Sensitive({}),
   Boolean $marker = true,
 ) {
   $_tag = pe_snapshot::tag($tag, $pe_patch_context)

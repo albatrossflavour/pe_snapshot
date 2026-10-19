@@ -15,6 +15,10 @@ module PeSnapshot
   WINDOWS = RbConfig::CONFIG['host_os'].match?(%r{mswin|mingw})
   CONFIG_DIR = WINDOWS ? 'C:/ProgramData/PuppetLabs/pe_snapshot' : '/etc/puppetlabs/pe_snapshot'
   ENDPOINT_DIR = File.join(CONFIG_DIR, 'endpoints')
+  # Written by something other than Puppet (Vault Agent, CyberArk, a script),
+  # so Puppet creates it but never purges it. Fixed, so a caller can't point
+  # a task at another file.
+  EXTERNAL_CREDENTIALS_DIR = File.join(CONFIG_DIR, 'credentials.d')
   NAME_PATTERN = %r{\A[a-z0-9_]+\z}
 
   # An error a task reports as `_error`, with a kind callers can match on.
@@ -103,32 +107,49 @@ module PeSnapshot
     Providers.const_get(name.split('_').map(&:capitalize).join)
   end
 
-  # Reads an endpoint's config and its credentials file. Credentials passed by
-  # the caller are merged in, and a key supplied twice is an error, because
+  # Reads an endpoint's config and its credentials, from up to three places:
+  # the file Puppet writes, the file an external agent writes, and the
+  # caller's Sensitive parameter. A key supplied twice is an error, because
   # silently preferring one source hides a misconfiguration.
-  def load_endpoint(name, extra_credentials = nil, dir = ENDPOINT_DIR)
+  def load_endpoint(name, extra_credentials = nil, dir = ENDPOINT_DIR, external_dir = EXTERNAL_CREDENTIALS_DIR)
     raise Error.new('bad_endpoint', "Invalid endpoint name '#{name}'") unless name.to_s.match?(NAME_PATTERN)
 
     config_file = File.join(dir, "#{name}.json")
     raise Error.new('unknown_endpoint', "Endpoint '#{name}' is not configured on this proxy", 'path' => config_file) unless File.file?(config_file)
 
     config = JSON.parse(File.read(config_file))
-    creds_file = File.join(dir, "#{name}.creds.json")
-    creds = File.file?(creds_file) ? read_secret(creds_file) : {}
-    extra = extra_credentials || {}
-    clash = creds.keys & extra.keys
-    raise Error.new('credentials_conflict', "Credential keys supplied by both the proxy file and the caller: #{clash.join(', ')}") unless clash.empty?
+    sources = {
+      'the Puppet-managed file' => read_secret(File.join(dir, "#{name}.creds.json")),
+      'the external file' => read_secret(File.join(external_dir, "#{name}.json")),
+      'the caller' => extra_credentials || {},
+    }
+    merged = {}
+    sources.each do |source, creds|
+      clash = merged.keys & creds.keys
+      raise Error.new('credentials_conflict', "Credential keys supplied twice for endpoint '#{name}', again by #{source}: #{clash.join(', ')}") unless clash.empty?
 
-    config.merge('credentials' => creds.merge(extra))
+      merged.merge!(creds)
+    end
+    config.merge('credentials' => merged)
   end
 
+  # Nothing from the file's content goes into an error: the message ends up
+  # in the proxy fact, so in PuppetDB, and a JSON parser error quotes the
+  # text around the fault, which can be the secret.
   def read_secret(path)
+    return {} unless File.file?(path)
+
     unless WINDOWS
       stat = File.stat(path)
       raise Error.new('insecure_credentials', "#{path} must be owned by root", 'path' => path) unless stat.uid.zero?
       raise Error.new('insecure_credentials', "#{path} must not be readable by group or others", 'path' => path) unless stat.mode.nobits?(0o077)
     end
-    JSON.parse(File.read(path))
+    creds = JSON.parse(File.read(path))
+    raise Error.new('unreadable_credentials', "#{path} does not hold a JSON object", 'path' => path) unless creds.is_a?(Hash)
+
+    creds
+  rescue JSON::ParserError
+    raise Error.new('unreadable_credentials', "#{path} is not valid JSON", 'path' => path)
   end
 
   def provider_for(endpoint)
