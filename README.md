@@ -5,10 +5,16 @@ Hypervisor and cloud snapshots for Puppet Enterprise plans. Take a snapshot of a
 | Provider | Status |
 | --- | --- |
 | Proxmox VE | Built, tested on a Proxmox 9.2 cluster |
-| GCE | Built, specs only until the lab service account exists. No restore |
+| GCE | Built, tested on the lab's GCE instances. No restore |
 | vSphere, libvirt, AWS, Azure | Planned |
 
-The design and the reasoning behind it are in [docs/design.md](docs/design.md).
+| Document | Covers |
+| --- | --- |
+| [docs/design.md](docs/design.md) | The design and the reasoning behind it |
+| [docs/operations.md](docs/operations.md) | Retention, endpoints, rotating credentials, moving the proxy, upgrading and uninstalling |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Every error kind, unmapped nodes, the sweep, the board and the alerts |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | The dev loop, lab validation and adding a provider |
+| [SECURITY.md](SECURITY.md) | Reporting a vulnerability. The security model is in [Secrets](#secrets) |
 
 ## How it fits together
 
@@ -228,7 +234,7 @@ The token can only snapshot what its hypervisor ACL lets it see, so scope it to 
 
 PE infrastructure is not restorable by default. `pe_snapshot::restorable` defaults to false on any node with the `pe_server_version` fact, and the restore plan refuses a node whose fact does not say `restorable: true`. Rolling back a primary or compiler revives revoked certificates, old tokens and old Hiera data, and loses everything the CA and PuppetDB recorded since. Set `pe_snapshot::restorable: true` in that node's Hiera to override.
 
-To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke the token on the hypervisor first (`pveum user token remove`), then issue a new one. To watch who reads the files:
+To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke it on the hypervisor first (`pveum user token remove`, or `gcloud iam service-accounts keys delete`), then issue a new one. [docs/operations.md](docs/operations.md#rotating-a-credential) has the steps. To watch who reads the files:
 
 ```sh
 auditctl -w /etc/puppetlabs/pe_snapshot/endpoints -p r -k pe_snapshot_creds

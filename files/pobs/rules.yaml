@@ -10,11 +10,12 @@ pe_snapshot:
       severity: warning
     annotations:
       summary: 'Expired snapshots on {{ $labels.endpoint }} are not being deleted'
-      description: >-
-        Snapshots past their expiry are still on endpoint {{ $labels.endpoint }}. Each delta
-        disk keeps growing until it goes. Check the proxy's agent runs for the
-        Exec[pe_snapshot sweep {{ $labels.endpoint }}] output, and the pe_snapshot_proxy
-        fact on the proxy for the error.
+      description: |-
+        Snapshots past their expiry are still on endpoint {{ $labels.endpoint }}, more than one agent run after they should have been deleted. Each one holds disk on the hypervisor until it goes.
+        Check the proxy's last agent run for Exec[pe_snapshot sweep {{ $labels.endpoint }}]. Each line names a snapshot and either "deleted" or the pe_snapshot error that stopped it.
+        If there is no sweep exec, the proxy has not run Puppet, pe_snapshot::proxy::sweep is false, or the endpoint is in error (see PeSnapshotEndpointUnreachable).
+        If the endpoint was removed from the proxy's Hiera, nothing sweeps it any more: delete its snapshots with pe_snapshot::delete or on the hypervisor.
+        Error kinds are explained in the module's docs/troubleshooting.md.
   PeSnapshotEndpointUnreachable:
     expr: 'sum by (alias, endpoint) (pe_snapshot_endpoints{status="error"}) > 0'
     for: 1h
@@ -22,10 +23,11 @@ pe_snapshot:
       severity: warning
     annotations:
       summary: 'A proxy cannot list snapshots on {{ $labels.endpoint }}'
-      description: >-
-        The proxy for endpoint {{ $labels.endpoint }} failed to list snapshots on its last
-        agent run, so expired snapshots there are not being swept and new ones may fail.
-        The error is in the pe_snapshot_proxy fact on the proxy (endpoints[].error).
+      description: |-
+        The proxy for endpoint {{ $labels.endpoint }} could not list snapshots on its last agent run. Expired snapshots there are not being swept, and plans using the endpoint will fail.
+        On the proxy, run `sudo puppet facts show pe_snapshot_proxy` and read endpoints[].error for this endpoint. It never contains a credential.
+        api_unreachable is network or TLS from the proxy to the API. api_error with HTTP 401 or 403 is the credential: revoked, expired, or missing a privilege. A GCE 400 with invalid_grant is an expired authorized_user login. missing_credentials or unreadable_credentials is the proxy's credentials file.
+        Fix it and run the agent on the proxy. The alert clears when the fact next reaches PuppetDB.
   PeSnapshotOlderThanAWeek:
     expr: 'sum by (alias, endpoint) (pe_snapshot_snapshots{age_bucket="gt_7d"}) > 0'
     for: 1h
@@ -33,7 +35,7 @@ pe_snapshot:
       severity: info
     annotations:
       summary: 'Snapshots older than a week on {{ $labels.endpoint }}'
-      description: >-
-        Managed snapshots on {{ $labels.endpoint }} are more than seven days old. That only
-        happens with allow_no_expiry or a max_retention_hours above 168. Long-lived
-        snapshots cost disk and slow the VM; check they are still wanted.
+      description: |-
+        Managed snapshots on {{ $labels.endpoint }} are more than seven days old. That only happens with allow_no_expiry or a max_retention_hours above 168 on the proxy.
+        Long-lived snapshots cost disk and, on most hypervisors, slow the VM's disk I/O as the delta grows.
+        Find them in the Snapshots board's Snapshots By Node table, or with pe_snapshot::list. Delete any that are no longer wanted with pe_snapshot::delete by tag.

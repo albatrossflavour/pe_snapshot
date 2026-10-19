@@ -6,7 +6,7 @@ A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed 
 
 - Runs under the PE orchestrator. No Bolt-only plan functions (`parallelize`, `background`, `wait_until_available`, `file::write`, inventory vars, remote transports). Validated on the lab primary, not with Bolt.
 - Composable. Each plan is usable on its own and as a step in another plan or a `pe_patch::runbook`, and returns a ResultSet with one Result per target.
-- Extensible. A provider is one Ruby file implementing four methods. Adding a hypervisor touches no plan, task or class.
+- Extensible. A provider is one Ruby file implementing the methods listed in CONTRIBUTING.md. Adding a hypervisor touches no plan, task or class.
 - No POBS changes. Reporting goes through the collector plugin contract (version 2), which is as much a test of that contract as it is a feature.
 
 ## Providers
@@ -177,12 +177,12 @@ The collector is declarative (`collector.yaml`, contract version 2), so POBS cou
 
 Bounded label sets, no per-node series. Alert rules: `PeSnapshotExpiredNotSwept` (75 minutes, since the proxy fact lags the sweep by one agent run), `PeSnapshotEndpointUnreachable` and `PeSnapshotOlderThanAWeek`. One board, in its own Snapshots folder.
 
-Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules loaded in Prometheus, the board was provisioned, and every panel query returned the lab's real numbers. The board has not been checked visually.
+Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules loaded in Prometheus, the board was provisioned, and every panel query returned the lab's real numbers. The board was then checked in a browser and its layout fixed, and it gained the Patch windows annotation layer once observability R1136 shipped.
 
 ## Build order
 
 1. Skeleton, the `pe_snapshot` class and fact, proxy class with credential files, the provider interface, the Proxmox provider, tasks, plans, sweep. Proven on the lab Proxmox VMs end to end.
-2. GCE provider, proven on the counterweight nodes.
+2. GCE provider, proven on the counterweight nodes (done 2026-10-19, running on a user's `authorized_user` credentials until the service account has its role).
 3. POBS plugin, boards and rules, proven on the lab dashboard (done 2026-10-19).
 4. vSphere, libvirt, AWS and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
 
