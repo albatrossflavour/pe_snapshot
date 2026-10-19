@@ -63,7 +63,13 @@ pe_snapshot::proxy::endpoints:
 
 `credentials` is `Sensitive` or `Deferred`. A `Deferred` (Vault, a cloud KMS, anything with a deferred function) resolves on the proxy at agent run time, so the secret is never in the compiled catalog. The class writes one root-owned `0600` JSON file per endpoint under `/etc/puppetlabs/pe_snapshot/endpoints/`. Tasks check the file's owner and mode before reading it.
 
-A plan can also pass `credentials` as `Sensitive[Hash]`, which is unwrapped only at the `run_task` call and sent to a task parameter marked `sensitive`. If a key comes from both the file and the parameter, the task fails instead of picking one, the rule pe_patch is adopting.
+A plan can also pass `credentials`, typed exactly `Sensitive[Hash]` with a `Sensitive({})` default. The exact type matters: the orchestrator only wraps JSON input in Sensitive, and only keeps the value out of the plan job record, for a parameter of that exact type. `Optional[Sensitive[Hash]]` was refused from the CLI and still stored in plain text in the job record (lab, plan job 2372, 2026-10-19). The value is unwrapped only at the `run_task` call and sent to a task parameter marked `sensitive`.
+
+An external agent (Vault Agent, CyberArk) can write `credentials.d/<endpoint>.json` instead. Puppet creates that directory and never purges it. The path is fixed, so a caller can't point a task at another file. A key supplied by more than one source is an error, the rule pe_patch is adopting. An unreadable credentials file is reported by name and error class only: a JSON parser error quotes the text around the fault, which can be the secret, and the message reaches PuppetDB through the proxy fact.
+
+PE infrastructure (any node with `pe_server_version`) is not restorable by default, and the restore plan fails closed on a node whose fact doesn't say `restorable: true`. The stronger control is the hypervisor ACL: the token is granted per VM, so infrastructure VMs are invisible to it.
+
+These came out of a secrets review on 2026-10-19 (`pe_patch-private/docs/superpowers/planning/2026-10-19-secrets-review.md`).
 
 ## Retention
 
