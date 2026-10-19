@@ -6,7 +6,8 @@ Hypervisor and cloud snapshots for Puppet Enterprise plans. Take a snapshot of a
 | --- | --- |
 | Proxmox VE | Built, tested on a Proxmox 9.2 cluster |
 | GCE | Built, tested on the lab's GCE instances. No restore |
-| vSphere, libvirt, AWS, Azure | Planned |
+| vSphere | Built, tested against vcsim (govmomi's vCenter simulator), not yet a real vCenter |
+| libvirt, AWS, Azure | Planned |
 
 | Document | Covers |
 | --- | --- |
@@ -113,6 +114,34 @@ The credentials can also be an `authorized_user` file from `gcloud auth applicat
 The proxy signs a JWT with the key and exchanges it for an hour-long token, so the key itself never leaves the proxy. It is still a long-lived credential: keep it out of any repository, rotate it with `gcloud iam service-accounts keys`, and prefer the external credentials file if a secrets agent can write it.
 
 A node is identified as `<zone>/<instance>` from its `gce` fact, which works when the instance name differs from the certname. GCE snapshots disks, not VMs, so one pe_snapshot snapshot is one disk snapshot per attached disk, all labelled `pe_snapshot_name=<name>`. `quiesce: true` asks the guest to flush (`guestFlush`), and there is no memory state. Restore is refused with `pe_snapshot/restore_unsupported`: create disks from the labelled snapshots, stop the instance, swap the disks and start it.
+
+### vSphere
+
+pe_snapshot talks to vCenter's SOAP API, because the REST API has no VM snapshot calls. Create a vCenter user and a role with only the snapshot and power-on privileges, and grant it on the folders that hold VMs you'd patch:
+
+```sh
+govc sso.user.create -p '<password>' pe_snapshot
+govc role.create PESnapshot VirtualMachine.State.CreateSnapshot VirtualMachine.State.RemoveSnapshot VirtualMachine.State.RevertToSnapshot VirtualMachine.Interact.PowerOn
+govc permissions.set -principal pe_snapshot@vsphere.local -role PESnapshot -propagate=true /<datacenter>/vm/<folder>
+```
+
+`VirtualMachine.Interact.PowerOn` is only for starting a VM after a restore. A VM outside the granted folders is invisible to the account and fails as `pe_snapshot/vm_not_found`, so keep vCenter, the PE primary and compilers out of them.
+
+```yaml
+pe_snapshot::proxy::endpoints:
+  - name: prod_vc
+    provider: vsphere
+    url: https://vcenter.example.com
+    ca_file: /etc/pki/vcenter-ca.pem
+pe_snapshot::proxy::credentials:
+  prod_vc: ENC[PKCS7,...]
+```
+
+The credentials are `{"username": "pe_snapshot@vsphere.local", "password": "..."}`. The proxy logs in once per task or agent run and logs out when it ends. `options` can set `api_version` (the SOAP version sent, default `7.0`, which vCenter 7 and 8 accept) and `task_timeout`.
+
+A VM is found by its BIOS uuid, which the guest reports as `dmi.product.uuid`. Older virtual hardware shows the guest the first three uuid fields in the other byte order, and pe_snapshot tries that form when the first finds nothing. A template sharing the uuid is ignored. Where a uuid matches two VMs, set `pe_snapshot::vm_id` to the VM's managed object id (`vm-1234`), which is also what the proxy fact reports.
+
+`memory: true` saves the VM's memory and `quiesce: true` quiesces the guest through VMware Tools, and the snapshot fails if Tools isn't running. A restore reverts, then powers the VM on if `start` is true and the revert left it off. vSphere doesn't keep snapshot names unique, so `delete` removes every snapshot with the name.
 
 ## Retention
 
@@ -234,7 +263,7 @@ The token can only snapshot what its hypervisor ACL lets it see, so scope it to 
 
 PE infrastructure is not restorable by default. `pe_snapshot::restorable` defaults to false on any node with the `pe_server_version` fact, and the restore plan refuses a node whose fact does not say `restorable: true`. Rolling back a primary or compiler revives revoked certificates, old tokens and old Hiera data, and loses everything the CA and PuppetDB recorded since. Set `pe_snapshot::restorable: true` in that node's Hiera to override.
 
-To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke it on the hypervisor first (`pveum user token remove`, or `gcloud iam service-accounts keys delete`), then issue a new one. [docs/operations.md](docs/operations.md#rotating-a-credential) has the steps. To watch who reads the files:
+To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke it on the hypervisor first (`pveum user token remove`, `gcloud iam service-accounts keys delete`, or changing the vCenter user's password), then issue a new one. [docs/operations.md](docs/operations.md#rotating-a-credential) has the steps. To watch who reads the files:
 
 ```sh
 auditctl -w /etc/puppetlabs/pe_snapshot/endpoints -p r -k pe_snapshot_creds

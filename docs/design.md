@@ -15,7 +15,7 @@ A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed 
 | --- | --- | --- | --- |
 | `proxmox` | `virtual = kvm` (default for kvm, overridable) | `dmi.product.uuid` matched to the VM's `smbios1` uuid, or an explicit `vmid` | Yes, the lab VMs |
 | `gce` | `virtual = gce` | `gce.instance.name` and zone | Yes, the counterweight nodes |
-| `vsphere` | `virtual = vmware` | `dmi.product.uuid` (BIOS uuid search in vCenter) | No lab vCenter, specs only |
+| `vsphere` | `virtual = vmware` | `dmi.product.uuid` (BIOS uuid search in vCenter), or the managed object id | vcsim only, no real vCenter yet |
 | `libvirt` | Hiera only, since kvm means Proxmox here | domain uuid = `dmi.product.uuid` | Specs only unless a libvirt host appears |
 | `aws` | `ec2_metadata` present | instance id; snapshots every attached EBS volume | Specs only |
 | `azure` | `az_metadata` present | VM resource id; snapshots each managed disk | Specs only |
@@ -184,7 +184,8 @@ Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules l
 1. Skeleton, the `pe_snapshot` class and fact, proxy class with credential files, the provider interface, the Proxmox provider, tasks, plans, sweep. Proven on the lab Proxmox VMs end to end.
 2. GCE provider, proven on the counterweight nodes (done 2026-10-19, running on a user's `authorized_user` credentials until the service account has its role).
 3. POBS plugin, boards and rules, proven on the lab dashboard (done 2026-10-19).
-4. vSphere, libvirt, AWS and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
+4. vSphere through the SOAP API, built and run against vcsim (2026-10-19). Needs a real vCenter to check the role's privileges, quiesce and revert.
+5. libvirt, AWS and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
 
 ## Validation
 

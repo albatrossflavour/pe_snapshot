@@ -4,6 +4,7 @@
 
 **Features**
 
+- vSphere provider, through vCenter's SOAP API, with memory and quiesce snapshots, restore, and VM lookup by BIOS uuid or managed object id. Tested against vcsim only so far.
 - GCE provider, by service account key or an `authorized_user` file. Snapshots every attached disk under one label. No restore.
 - `pe_snapshot::endpoint` can be a list, for VMs that move between hosts or clusters with separate APIs.
 - Puppet Observability plugin (`pe_snapshot::pobs`): collector, alert rules, and a Snapshots board with per-node tables and the Patch windows annotation layer. The board needs observability R1136 or later.

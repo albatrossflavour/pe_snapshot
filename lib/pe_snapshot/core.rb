@@ -208,20 +208,26 @@ module PeSnapshot
     end
 
     def request(klass, path, body = nil, content_type = 'application/json')
+      res = raw(klass, path, body, content_type)
+      raise Error.new('api_error', "#{klass::METHOD} #{path} returned HTTP #{res.code}: #{res.body.to_s[0, 500]}", 'status' => res.code.to_i, 'path' => path) unless res.is_a?(Net::HTTPSuccess)
+
+      res.body.to_s.empty? ? {} : JSON.parse(res.body)
+    end
+
+    # The response as it came, whatever its status, for APIs that aren't JSON
+    # or that report errors in the body (SOAP).
+    def raw(klass, path, body = nil, content_type = 'application/json', headers: {})
       uri = URI("#{@base}#{path}")
       req = klass.new(uri)
-      @headers.each { |k, v| req[k] = v }
+      @headers.merge(headers).each { |k, v| req[k] = v }
       if body
         req['Content-Type'] = content_type
         req.body = body.is_a?(String) ? body : JSON.generate(body)
       end
-      res = Net::HTTP.start(uri.host, uri.port, nil, use_ssl: uri.scheme == 'https', verify_mode: @verify_tls ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE,
-                                                     ca_file: @ca_file, open_timeout: @timeout, read_timeout: @timeout) do |http|
+      Net::HTTP.start(uri.host, uri.port, nil, use_ssl: uri.scheme == 'https', verify_mode: @verify_tls ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE,
+                                               ca_file: @ca_file, open_timeout: @timeout, read_timeout: @timeout) do |http|
         http.request(req)
       end
-      raise Error.new('api_error', "#{klass::METHOD} #{uri.path} returned HTTP #{res.code}: #{res.body.to_s[0, 500]}", 'status' => res.code.to_i, 'path' => uri.path) unless res.is_a?(Net::HTTPSuccess)
-
-      res.body.to_s.empty? ? {} : JSON.parse(res.body)
     rescue SocketError, SystemCallError, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError => e
       raise Error.new('api_unreachable', "#{uri}: #{e.class}: #{e.message}")
     end

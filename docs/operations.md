@@ -51,6 +51,7 @@ Issue the new credential, put it in Hiera (or let the external agent rewrite its
 
 - **Proxmox.** `pveum user token add` a new token with `--privsep 1`, grant it the same ACLs, then `pveum user token remove` the old one.
 - **GCE.** `gcloud iam service-accounts keys create` a new key, then `gcloud iam service-accounts keys delete` the old key's id once the proxy has run.
+- **vSphere.** There's one password, so change it in vCenter and in Hiera together, and run the agent on the proxy straight after. Tasks started in between fail with `auth_failed`.
 
 If a credential leaks, revoke it on the hypervisor first and replace it second.
 
@@ -82,7 +83,7 @@ If the upgrade changes the board or rules, run the agent twice on the primary an
 2. Set `pe_snapshot::pobs::ensure: absent` and run the agent twice on the primary and once on the dashboard node, then remove the class.
 3. Remove `pe_snapshot::proxy` from the proxies and `pe_snapshot` from the nodes.
 4. Delete `/etc/puppetlabs/pe_snapshot` on every node. On Windows it's `C:/ProgramData/PuppetLabs/pe_snapshot`.
-5. Revoke the credentials. For Proxmox, remove the token, the user and the `PESnapshot` role. For GCE, delete the service account and the `peSnapshot` role.
+5. Revoke the credentials. For Proxmox, remove the token, the user and the `PESnapshot` role. For GCE, delete the service account and the `peSnapshot` role. For vSphere, remove the permissions, the `PESnapshot` role and the user.
 6. Remove the module from the Puppetfile.
 
 Snapshots left on a hypervisor after step 3 are ordinary snapshots. Any name starting `pes-` came from pe_snapshot, and its description holds the metadata, so they're easy to find by hand.
