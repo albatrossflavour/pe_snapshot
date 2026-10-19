@@ -160,6 +160,8 @@ The plugin can only count, so the board's two per-node tables, Snapshots By Node
 
 The alerts are `PeSnapshotExpiredNotSwept` (warning, 75 minutes, which allows for the fact lagging the sweep by one agent run), `PeSnapshotEndpointUnreachable` (warning, 1 hour) and `PeSnapshotOlderThanAWeek` (info). The Snapshots board is in its own Snapshots folder.
 
+A change to the board or rules takes two agent runs on the primary, then one on the dashboard node. The primary carries them to the dashboard node in its `pobs_plugins` fact, and facts are collected at the start of a run, before that run updates the plugin files. So the first primary run places the new files, the second publishes them, and the dashboard run provisions them.
+
 Check a change to the plugin before shipping it, with Puppet Observability's own checker:
 
 ```sh

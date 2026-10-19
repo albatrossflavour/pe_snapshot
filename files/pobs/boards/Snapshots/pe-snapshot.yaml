@@ -135,12 +135,15 @@ panels:
   description: Every managed snapshot, as its proxy last listed it. Comes from the
     pe_snapshot_detail custom metric, refreshed every five minutes.
   targets:
-  - expr: label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(puppet_custom_pe_snapshot_detail{alias=~"$pe"},
+  - expr: label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(puppet_custom_pe_snapshot_detail{alias=~"$pe"},
       "node", "$1", "value", `(?:[^|]*\|){0}([^|]*).*`), "endpoint", "$1", "value",
       `(?:[^|]*\|){1}([^|]*).*`), "tag", "$1", "value", `(?:[^|]*\|){2}([^|]*).*`),
       "snapshot", "$1", "value", `(?:[^|]*\|){3}([^|]*).*`), "state", "$1", "value",
       `(?:[^|]*\|){4}([^|]*).*`), "age_bucket", "$1", "value", `(?:[^|]*\|){5}([^|]*).*`),
-      "expires", "$1", "value", `(?:[^|]*\|){6}([^|]*).*`)
+      "expires", "$1", "value", `(?:[^|]*\|){6}([^|]*).*`), "age_bucket", "Under 1
+      hour", "age_bucket", "lt_1h"), "age_bucket", "1 to 24 hours", "age_bucket",
+      "1h_24h"), "age_bucket", "1 to 7 days", "age_bucket", "1d_7d"), "age_bucket",
+      "Over 7 days", "age_bucket", "gt_7d")
     instant: true
     format: table
   transformations:
@@ -171,7 +174,7 @@ panels:
     Tag: 150
     Snapshot: 210
     State: 80
-    Age: 80
+    Age: 120
     Expires: 150
 - title: Unmapped Nodes
   type: table
