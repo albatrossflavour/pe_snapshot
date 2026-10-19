@@ -8,8 +8,11 @@ module PeSnapshot
   module Providers
     # Google Compute Engine, through the Compute API with a service account key.
     #
-    # endpoint: project, credentials = the service account's JSON key
-    # (client_email, private_key, token_uri). A VM is identified as
+    # endpoint: project, credentials = a Google credentials file as gcloud
+    # writes it: a service account's JSON key (client_email, private_key), or
+    # an authorized_user file from `gcloud auth application-default login`
+    # (client_id, client_secret, refresh_token). Use the service account; the
+    # user form acts as that person and their session policy applies to it. A VM is identified as
     # "<zone>/<instance name>", which the pe_snapshot class builds from the
     # gce fact.
     #
@@ -32,7 +35,9 @@ module PeSnapshot
         raise Error.new('bad_endpoint', "GCE endpoint '#{endpoint['name']}' needs a project") if @project.empty?
 
         @key = endpoint['credentials'] || {}
-        raise Error.new('missing_credentials', "GCE endpoint '#{endpoint['name']}' needs a service account key (client_email, private_key)") unless @key['client_email'] && @key['private_key']
+        needed = (@key['type'] == 'authorized_user') ? ['client_id', 'client_secret', 'refresh_token'] : ['client_email', 'private_key']
+        missing = needed.reject { |k| @key[k] }
+        raise Error.new('missing_credentials', "GCE endpoint '#{endpoint['name']}' credentials lack #{missing.join(', ')}: give a service account key or an authorized_user file") unless missing.empty?
 
         @token_http = token_http
         @http = http
@@ -147,23 +152,36 @@ module PeSnapshot
         @http ||= HTTP.new(API, headers: { 'Authorization' => "Bearer #{access_token}" }, ca_file: @endpoint['ca_file'])
       end
 
-      # A short-lived token from a signed JWT (RFC 7523). Only the JWT and the
-      # token cross the wire; the key never leaves the proxy.
+      # A short-lived token. A service account signs a JWT (RFC 7523), so the
+      # key never leaves the proxy; an authorized_user file trades its refresh
+      # token. Errors name the identity, never the secret.
       def access_token
         uri = URI(@key['token_uri'] || 'https://oauth2.googleapis.com/token')
+        form = if @key['type'] == 'authorized_user'
+                 { 'grant_type' => 'refresh_token', 'client_id' => @key['client_id'], 'client_secret' => @key['client_secret'], 'refresh_token' => @key['refresh_token'] }
+               else
+                 { 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => jwt(uri) }
+               end
+        http = @token_http || HTTP.new("#{uri.scheme}://#{uri.host}", ca_file: @endpoint['ca_file'])
+        token = http.post_form(uri.path, form)['access_token']
+        raise Error.new('auth_failed', "GCE token endpoint returned no access_token for #{identity}") unless token
+
+        token
+      end
+
+      def jwt(uri)
         now = Time.now.to_i
         claims = { 'iss' => @key['client_email'], 'scope' => SCOPE, 'aud' => uri.to_s, 'iat' => now, 'exp' => now + 3600 }
         unsigned = [{ 'alg' => 'RS256', 'typ' => 'JWT' }, claims].map { |part| Base64.urlsafe_encode64(JSON.generate(part), padding: false) }.join('.')
         signature = OpenSSL::PKey::RSA.new(@key['private_key']).sign(OpenSSL::Digest.new('SHA256'), unsigned)
-        jwt = "#{unsigned}.#{Base64.urlsafe_encode64(signature, padding: false)}"
-        http = @token_http || HTTP.new("#{uri.scheme}://#{uri.host}", ca_file: @endpoint['ca_file'])
-        token = http.post_form(uri.path, 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => jwt)['access_token']
-        raise Error.new('auth_failed', "GCE token endpoint returned no access_token for #{@key['client_email']}") unless token
-
-        token
+        "#{unsigned}.#{Base64.urlsafe_encode64(signature, padding: false)}"
       rescue OpenSSL::PKey::PKeyError
         # The message could describe the key; say only which key.
-        raise Error.new('auth_failed', "The private key for #{@key['client_email']} could not be read")
+        raise Error.new('auth_failed', "The private key for #{identity} could not be read")
+      end
+
+      def identity
+        @key['client_email'] || "authorized_user client #{@key['client_id']}"
       end
     end
   end

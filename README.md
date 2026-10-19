@@ -102,6 +102,8 @@ pe_snapshot::proxy::credentials:
   gce_prod: ENC[PKCS7,...]
 ```
 
+The credentials can also be an `authorized_user` file from `gcloud auth application-default login`, which makes the proxy act as that person. That's for trying the provider before a service account is set up: the snapshots are logged as the person, the refresh token carries everything they can do, and an org's session policy can expire it. Swap it for a service account key by changing the Hiera value.
+
 The proxy signs a JWT with the key and exchanges it for an hour-long token, so the key itself never leaves the proxy. It is still a long-lived credential: keep it out of any repository, rotate it with `gcloud iam service-accounts keys`, and prefer the external credentials file if a secrets agent can write it.
 
 A node is identified as `<zone>/<instance>` from its `gce` fact, which works when the instance name differs from the certname. GCE snapshots disks, not VMs, so one pe_snapshot snapshot is one disk snapshot per attached disk, all labelled `pe_snapshot_name=<name>`. `quiesce: true` asks the guest to flush (`guestFlush`), and there is no memory state. Restore is refused with `pe_snapshot/restore_unsupported`: create disks from the labelled snapshots, stop the instance, swap the disks and start it.

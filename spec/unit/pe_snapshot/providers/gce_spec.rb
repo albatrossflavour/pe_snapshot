@@ -26,7 +26,8 @@ describe PeSnapshot::Providers::Gce do
 
   it 'needs a project and a key' do
     expect { described_class.new(endpoint.merge('project' => nil)) }.to raise_error(PeSnapshot::Error, %r{needs a project})
-    expect { described_class.new(endpoint.merge('credentials' => {})) }.to raise_error(PeSnapshot::Error, %r{service account key})
+    expect { described_class.new(endpoint.merge('credentials' => {})) }.to raise_error(PeSnapshot::Error, %r{lack client_email, private_key})
+    expect { described_class.new(endpoint.merge('credentials' => { 'type' => 'authorized_user', 'client_id' => 'c' })) }.to raise_error(PeSnapshot::Error, %r{lack client_secret, refresh_token})
   end
 
   it 'resolves zone/name to the instance and its disks' do
@@ -85,6 +86,13 @@ describe PeSnapshot::Providers::Gce do
         expect(rsa.public_key.verify(OpenSSL::Digest.new('SHA256'), Base64.urlsafe_decode64(sig), "#{head}.#{body}")).to be(true)
         expect(JSON.parse(Base64.urlsafe_decode64(body))).to include('iss' => key['client_email'], 'aud' => key['token_uri'])
       end
+    end
+
+    it 'trades an authorized_user refresh token' do
+      user = { 'type' => 'authorized_user', 'client_id' => 'cid', 'client_secret' => 'csec', 'refresh_token' => 'rtok' }
+      allow(token_http).to receive(:post_form).and_return('access_token' => 'ya29.u')
+      expect(described_class.new(endpoint.merge('credentials' => user), token_http: token_http).send(:access_token)).to eq('ya29.u')
+      expect(token_http).to have_received(:post_form).with('/token', 'grant_type' => 'refresh_token', 'client_id' => 'cid', 'client_secret' => 'csec', 'refresh_token' => 'rtok')
     end
 
     it 'does not describe a key it cannot read' do
