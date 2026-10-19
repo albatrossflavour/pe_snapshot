@@ -21,7 +21,8 @@ Specs live under `spec/`:
 | --- | --- |
 | `spec/classes/` | `pe_snapshot` and `pe_snapshot::proxy`, including both on one node |
 | `spec/functions/` | `pe_snapshot::creds_json` |
-| `spec/unit/pe_snapshot/` | The actions layer, and each provider against stubbed API responses |
+| `spec/unit/pe_snapshot/` | The actions layer, the sweep, the HTTP client, and each provider against stubbed API responses |
+| `spec/unit/facter/` | The `pe_snapshot` and `pe_snapshot_proxy` facts, against temporary files and an in-memory provider |
 
 ## Lab validation
 
