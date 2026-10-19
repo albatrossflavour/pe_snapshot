@@ -22,14 +22,14 @@ Start with the error's `kind`. Every failure pe_snapshot reports is a `pe_snapsh
 | `too_many_targets` | `restore` was given more than one target | Restore one node at a time |
 | `not_restorable` | The node's fact doesn't say `restorable: true`. PE infrastructure defaults to false | Set `pe_snapshot::restorable: true` in that node's Hiera if you mean it. See the README's Secrets section first |
 | `unknown_endpoint` | The node's endpoint isn't configured on its proxy, or the proxy hasn't had an agent run since it was added | Check `pe_snapshot::proxy::endpoints` and the node's `pe_snapshot::endpoint`, then run the agent on the proxy |
-| `bad_endpoint` | An endpoint name isn't lower case letters, digits and underscores, or a GCE endpoint has no `project` | Fix the Hiera |
-| `unknown_provider` | The provider name doesn't match a file under `lib/pe_snapshot/providers/` | Check `pe_snapshot::provider` and `pe_snapshot::virtual_map`. `proxmox`, `gce` and `vsphere` exist so far |
+| `bad_endpoint` | An endpoint name isn't lower case letters, digits and underscores, a GCE endpoint has no `project`, or an AWS endpoint has no `region` | Fix the Hiera |
+| `unknown_provider` | The provider name doesn't match a file under `lib/pe_snapshot/providers/` | Check `pe_snapshot::provider` and `pe_snapshot::virtual_map`. `proxmox`, `gce`, `vsphere` and `aws` exist so far |
 | `provider_mismatch` | The node's provider isn't the endpoint's provider | Point the node at the right endpoint, or fix its `pe_snapshot::provider` |
-| `missing_credentials` | The merged credentials lack a key the provider needs (Proxmox `token_id` and `token_secret`, GCE `client_email` and `private_key`, vSphere `username` and `password`) | Check `pe_snapshot::proxy::credentials` has an entry under the endpoint's name, and that the proxy has run since |
+| `missing_credentials` | The merged credentials lack a key the provider needs (Proxmox `token_id` and `token_secret`, GCE `client_email` and `private_key`, vSphere `username` and `password`, AWS `access_key_id` and `secret_access_key`) | Check `pe_snapshot::proxy::credentials` has an entry under the endpoint's name, and that the proxy has run since |
 | `credentials_conflict` | A credential key came from more than one source: the Puppet file, the external file and the plan's `credentials` | Supply each key from one place. The message names the second source |
 | `insecure_credentials` | An external credentials file isn't owned by root or is readable by group or others | `chown root:root` and `chmod 0600` it |
 | `unreadable_credentials` | A credentials file isn't JSON, or isn't a JSON object | Fix whatever wrote it. The error gives the path, never the content |
-| `auth_failed` | GCE: the token endpoint returned no token, or the private key couldn't be read. vSphere: vCenter refused the login (`InvalidLogin`), or the session ended mid-task (`NotAuthenticated`) | GCE: check the key file is the JSON as Google issued it. vSphere: check the user and password, and that the account isn't locked |
+| `auth_failed` | GCE: the token endpoint returned no token, or the private key couldn't be read. vSphere: vCenter refused the login (`InvalidLogin`), or the session ended mid-task (`NotAuthenticated`) | GCE: check the key file is the JSON as Google issued it. vSphere: check the user and password, and that the account isn't locked. AWS: `details.code` says why (`AuthFailure`, `ExpiredToken`, `SignatureDoesNotMatch`). An expired token wants new STS credentials, and a signature mismatch usually means the proxy's clock is wrong |
 | `api_error` | The hypervisor API answered with an HTTP error. `details.status` has the code | See [API errors](#api-errors) |
 | `api_unreachable` | No HTTP answer: DNS, routing, firewall or TLS | See [API errors](#api-errors) |
 | `vm_not_found` | No VM on the endpoint matches the node's VM id | See [A VM can't be found](#a-vm-cant-be-found) |
@@ -39,7 +39,9 @@ Start with the error's `kind`. Every failure pe_snapshot reports is a `pe_snapsh
 | `bad_retention` | `retention_hours` is negative, over the proxy's maximum, or 0 where `allow_no_expiry` is false | Ask for less, or change the proxy's limits |
 | `provider_task_failed` | The hypervisor accepted the request and the job failed | Proxmox: open the task by its `upid` in the Proxmox UI. A common cause is a disk on storage that can't snapshot, such as plain LVM. GCE: the message carries the operation's error. vSphere: `details.fault` has the fault type, such as `ToolsUnavailable` for a quiesce without VMware Tools |
 | `provider_timeout` | The hypervisor job was still running after `task_timeout` seconds (default 900) | The job may still finish. Check the hypervisor before retrying, then raise `task_timeout` in the endpoint's `options` if it's normal for that VM |
-| `restore_unsupported` | The provider can't restore (GCE) | Restore by hand: create disks from the labelled snapshots, stop the instance, swap the disks, start it |
+| `unsupported_option` | `memory` or `quiesce` was asked of a provider that can't do it (AWS) | Take the snapshot without it |
+| `bad_description` | The snapshot's metadata is longer than EC2's 255-character description limit, usually from a very long certname or tag | Use a shorter tag |
+| `restore_unsupported` | The provider can't restore (GCE, AWS) | Restore by hand: create disks from the labelled snapshots, stop the instance, swap the disks, start it |
 | `marker_failed` | The snapshot was taken, but the marker task on the target failed | The snapshot exists and the sweep will still expire it. Only the target's own fact will be missing it |
 | `no_result` | The proxy's task returned nothing for a target | Look at the task job on the proxy in the console |
 | `bad_action` | A direct task call named an action other than create, delete, list or restore | Use one of those |
@@ -61,6 +63,7 @@ The `pe_snapshot` fact's `coverage` is `<provider>:unmapped` and the plans refus
 - **Proxmox.** The token only sees VMs it has an ACL on, so a new VM needs `pveum acl modify /vms/<vmid> ...` before it can be snapshotted. Otherwise, compare the node's `dmi.product.uuid` with the VM's `smbios1` uuid (`qm config <vmid> | grep smbios1`). A VM restored from a backup or rebuilt by hand can have a new uuid. Set `pe_snapshot::vm_id` to the vmid if they can't be made to match.
 - **GCE.** The VM id is `<zone>/<instance>`. A 404 for that instance means it was deleted, moved zone, or lives in a different project from the endpoint's.
 - **vSphere.** The account only sees VMs in folders its role is granted on. Otherwise compare the node's `dmi.product.uuid` with the VM's BIOS uuid (`govc vm.info -json <vm>`, `config.uuid`). pe_snapshot also tries the byte-swapped form older hardware shows the guest. Set `pe_snapshot::vm_id` to the managed object id (`vm-1234`) if neither matches.
+- **AWS.** The VM id is the instance id, and it belongs to one region, so the node's endpoint has to be that region's. A terminated instance is not found.
 - **An endpoint list.** The VM wasn't on any of them. If one endpoint couldn't be asked, the error is that endpoint's error and not `vm_not_found`, because the VM might be there.
 
 ## API errors
@@ -76,6 +79,8 @@ The `pe_snapshot` fact's `coverage` is `<provider>:unmapped` and the plans refus
 | 5xx | The cluster is unhappy. Check the Proxmox UI | A Google-side fault. Retry |
 
 vSphere reports errors as SOAP faults, so its `api_error` carries the fault type in `details.fault` as well as the HTTP status. `NoPermission` means the role is missing a privilege, which the message names. `ManagedObjectNotFound` means the VM or snapshot was deleted while pe_snapshot was working on it.
+
+AWS errors carry the EC2 error code in `details.code`. `UnauthorizedOperation` means the IAM policy is missing an action or a condition doesn't match, and the message has an encoded authorisation failure that `aws sts decode-authorization-message` explains. A delete refused because the snapshot is still `pending` needs retrying once it completes. The sweep retries expired ones on its own.
 
 `api_unreachable` means there was no HTTP answer at all. Test from the proxy with `curl -sv <url>`. A TLS failure against an internal CA wants `ca_file` on the endpoint, not `verify_tls: false`.
 

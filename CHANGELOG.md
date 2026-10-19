@@ -4,6 +4,7 @@
 
 **Features**
 
+- AWS provider, through the EC2 Query API with SigV4 signed on the proxy. One crash-consistent `CreateSnapshots` per instance, tagged so the volume snapshots group back together. No restore. Tested against moto only so far.
 - vSphere provider, through vCenter's SOAP API, with memory and quiesce snapshots, restore, and VM lookup by BIOS uuid or managed object id. Tested against vcsim only so far.
 - GCE provider, by service account key or an `authorized_user` file. Snapshots every attached disk under one label. No restore.
 - `pe_snapshot::endpoint` can be a list, for VMs that move between hosts or clusters with separate APIs.

@@ -7,7 +7,8 @@ Hypervisor and cloud snapshots for Puppet Enterprise plans. Take a snapshot of a
 | Proxmox VE | Built, tested on a Proxmox 9.2 cluster |
 | GCE | Built, tested on the lab's GCE instances. No restore |
 | vSphere | Built, tested against vcsim (govmomi's vCenter simulator), not yet a real vCenter |
-| libvirt, AWS, Azure | Planned |
+| AWS (EC2) | Built, tested against moto (a mock AWS server), not yet a real account. No restore |
+| libvirt, Azure | Planned |
 
 | Document | Covers |
 | --- | --- |
@@ -143,6 +144,45 @@ A VM is found by its BIOS uuid, which the guest reports as `dmi.product.uuid`. O
 
 `memory: true` saves the VM's memory and `quiesce: true` quiesces the guest through VMware Tools, and the snapshot fails if Tools isn't running. A restore reverts, then powers the VM on if `start` is true and the revert left it off. vSphere doesn't keep snapshot names unique, so `delete` removes every snapshot with the name.
 
+### AWS
+
+An IAM user (or role) with a policy that can only describe, snapshot, and delete snapshots pe_snapshot tagged:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["ec2:DescribeInstances", "ec2:DescribeSnapshots"], "Resource": "*" },
+    { "Effect": "Allow", "Action": "ec2:CreateSnapshots",
+      "Resource": ["arn:aws:ec2:*:*:instance/*", "arn:aws:ec2:*:*:volume/*", "arn:aws:ec2:*::snapshot/*"] },
+    { "Effect": "Allow", "Action": "ec2:CreateTags", "Resource": "arn:aws:ec2:*::snapshot/*",
+      "Condition": { "StringEquals": { "ec2:CreateAction": "CreateSnapshots" } } },
+    { "Effect": "Allow", "Action": "ec2:DeleteSnapshot", "Resource": "arn:aws:ec2:*::snapshot/*",
+      "Condition": { "StringEquals": { "aws:ResourceTag/pe_snapshot": "1" } } }
+  ]
+}
+```
+
+To keep infrastructure out of reach, narrow the `instance/*` resource with an `ec2:ResourceTag` condition on a tag your patchable instances carry.
+
+One endpoint per region, with the region as an option:
+
+```yaml
+pe_snapshot::proxy::endpoints:
+  - name: aws_syd
+    provider: aws
+    options:
+      region: ap-southeast-2
+pe_snapshot::proxy::credentials:
+  aws_syd: ENC[PKCS7,...]
+```
+
+The credentials are `{"access_key_id": "...", "secret_access_key": "..."}`, plus `session_token` for temporary STS credentials. Requests are signed with SigV4 on the proxy, so the secret key never leaves it. `url` overrides the EC2 endpoint, for a VPC endpoint or a GovCloud region.
+
+A node is identified by its instance id from the `ec2_metadata` fact. EBS snapshots volumes, not instances, so one pe_snapshot snapshot is a single `CreateSnapshots` call: a crash-consistent snapshot of every attached volume, tagged `pe_snapshot_name=<name>` and `pe_snapshot_instance=<id>`. `create` returns once the snapshots have started, because they're consistent from that moment and copying to S3 can take a long time. There is no memory state and no quiesce, so `memory: true` and `quiesce: true` are refused with `pe_snapshot/unsupported_option`, and so is restore, with `pe_snapshot/restore_unsupported`: create volumes from the tagged snapshots, stop the instance, swap the volumes and start it.
+
+EC2 limits a snapshot description to 255 characters, and pe_snapshot keeps its metadata there. A very long certname or tag can go over it, which fails as `pe_snapshot/bad_description` before anything is created.
+
 ## Retention
 
 Snapshots expire after 24 hours by default, and a request for more than 168 hours is refused. Both limits are proxy settings:
@@ -263,7 +303,7 @@ The token can only snapshot what its hypervisor ACL lets it see, so scope it to 
 
 PE infrastructure is not restorable by default. `pe_snapshot::restorable` defaults to false on any node with the `pe_server_version` fact, and the restore plan refuses a node whose fact does not say `restorable: true`. Rolling back a primary or compiler revives revoked certificates, old tokens and old Hiera data, and loses everything the CA and PuppetDB recorded since. Set `pe_snapshot::restorable: true` in that node's Hiera to override.
 
-To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke it on the hypervisor first (`pveum user token remove`, `gcloud iam service-accounts keys delete`, or changing the vCenter user's password), then issue a new one. [docs/operations.md](docs/operations.md#rotating-a-credential) has the steps. To watch who reads the files:
+To rotate a credential, update Hiera (or let the external agent rewrite its file) and the next proxy agent run uses it. If one leaks, revoke it on the hypervisor first (`pveum user token remove`, `gcloud iam service-accounts keys delete`, `aws iam delete-access-key`, or changing the vCenter user's password), then issue a new one. [docs/operations.md](docs/operations.md#rotating-a-credential) has the steps. To watch who reads the files:
 
 ```sh
 auditctl -w /etc/puppetlabs/pe_snapshot/endpoints -p r -k pe_snapshot_creds

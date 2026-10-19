@@ -17,7 +17,7 @@ A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed 
 | `gce` | `virtual = gce` | `gce.instance.name` and zone | Yes, the counterweight nodes |
 | `vsphere` | `virtual = vmware` | `dmi.product.uuid` (BIOS uuid search in vCenter), or the managed object id | vcsim only, no real vCenter yet |
 | `libvirt` | Hiera only, since kvm means Proxmox here | domain uuid = `dmi.product.uuid` | Specs only unless a libvirt host appears |
-| `aws` | `ec2_metadata` present | instance id; snapshots every attached EBS volume | Specs only |
+| `aws` | `ec2_metadata` present | instance id; snapshots every attached EBS volume in one `CreateSnapshots` call | moto only, no real account yet |
 | `azure` | `az_metadata` present | VM resource id; snapshots each managed disk | Specs only |
 
 Cloud providers snapshot disks, not VMs. A "snapshot" there is the set of disk snapshots sharing one name and tag, and restore is out of scope for them in v1 (it means replacing disks, not reverting). The plan says so instead of attempting it.
@@ -185,7 +185,8 @@ Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules l
 2. GCE provider, proven on the counterweight nodes (done 2026-10-19, running on a user's `authorized_user` credentials until the service account has its role).
 3. POBS plugin, boards and rules, proven on the lab dashboard (done 2026-10-19).
 4. vSphere through the SOAP API, built and run against vcsim (2026-10-19). Needs a real vCenter to check the role's privileges, quiesce and revert.
-5. libvirt, AWS and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
+5. AWS through the EC2 Query API with SigV4 by hand, built and run against moto, with the signature checked against botocore (2026-10-19). Needs a real account to check the IAM policy and the description limit.
+6. libvirt and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
 
 ## Validation
 
