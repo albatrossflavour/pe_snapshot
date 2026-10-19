@@ -196,6 +196,8 @@ The collector is declarative (`files/pobs/collector.yaml`). Puppet Observability
 
 The plugin can only count, so the board's two per-node tables, Snapshots By Node and Unmapped Nodes, come from two Puppet Observability custom metrics that `pe_snapshot::pobs` also declares: `puppet_custom_pe_snapshot_detail` (one series per snapshot) and `puppet_custom_pe_snapshot_unmapped` (one per unmapped node). Each is capped at 1,000 rows by Puppet Observability, and both need `observability::enable_custom_metrics` on the primary. Set `pe_snapshot::pobs::node_tables: false` to leave them out.
 
+The board asks for Puppet Observability's Patch windows annotation layer (`annotations: [patches]`), because snapshots are taken around patch runs and the layer is what explains them. That key arrived with observability R1136: an older Puppet Observability refuses the board, and the rest of the plugin still loads.
+
 The alerts are `PeSnapshotExpiredNotSwept` (warning, 75 minutes, which allows for the fact lagging the sweep by one agent run), `PeSnapshotEndpointUnreachable` (warning, 1 hour) and `PeSnapshotOlderThanAWeek` (info). The Snapshots board is in its own Snapshots folder.
 
 A change to the board or rules takes two agent runs on the primary, then one on the dashboard node. The primary carries them to the dashboard node in its `pobs_plugins` fact, and facts are collected at the start of a run, before that run updates the plugin files. So the first primary run places the new files, the second publishes them, and the dashboard run provisions them.

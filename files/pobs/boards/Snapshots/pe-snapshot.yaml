@@ -6,6 +6,8 @@ description: Hypervisor snapshots taken by pe_snapshot, as each proxy last liste
   them.
 variables:
 - pe
+annotations:
+- patches
 panels:
 - title: Active Snapshots
   type: stat
