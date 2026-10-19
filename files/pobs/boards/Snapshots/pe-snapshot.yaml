@@ -65,6 +65,10 @@ panels:
     instant: true
   thresholds:
   - colour: neutral
+  options:
+    orientation: horizontal
+    displayMode: basic
+    showUnfilled: true
 - title: Endpoints
   type: table
   width: 12
@@ -72,6 +76,21 @@ panels:
   - expr: sum by (endpoint, status) (pe_snapshot_endpoints{alias=~"$pe"})
     instant: true
     format: table
+  transformations:
+  - id: filterFieldsByName
+    options:
+      include:
+        pattern: "^(endpoint|status|Value)$"
+  - id: organize
+    options:
+      renameByName:
+        endpoint: Endpoint
+        status: Status
+        Value: Proxies
+      indexByName:
+        endpoint: 0
+        status: 1
+        Value: 2
 - title: Nodes By Provider
   type: table
   width: 12
@@ -79,6 +98,21 @@ panels:
   - expr: sum by (provider, mapping) (pe_snapshot_nodes{alias=~"$pe"})
     instant: true
     format: table
+  transformations:
+  - id: filterFieldsByName
+    options:
+      include:
+        pattern: "^(provider|mapping|Value)$"
+  - id: organize
+    options:
+      renameByName:
+        provider: Provider
+        mapping: Mapping
+        Value: Nodes
+      indexByName:
+        provider: 0
+        mapping: 1
+        Value: 2
 - title: Snapshots By Node
   type: table
   width: 24
@@ -117,6 +151,13 @@ panels:
         state: 4
         age_bucket: 5
         expires: 6
+  column_widths:
+    Endpoint: 110
+    Tag: 150
+    Snapshot: 210
+    State: 80
+    Age: 80
+    Expires: 150
 - title: Unmapped Nodes
   type: table
   width: 24

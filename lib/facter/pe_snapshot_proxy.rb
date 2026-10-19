@@ -7,7 +7,7 @@
 # can only label a series with whole fields. The Snapshots board splits it on
 # |, so | is taken out of the free-text parts.
 def detail(snap, endpoint)
-  expires = snap['expires'].to_i.zero? ? 'never' : Time.at(snap['expires'].to_i).utc.strftime('%Y-%m-%d %H:%M UTC')
+  expires = snap['expires'].to_i.zero? ? 'never' : Time.at(snap['expires'].to_i).utc.strftime('%Y-%m-%d %H:%MZ')
   [snap['certname'], endpoint, snap['tag'], snap['name'], snap['state'], snap['age_bucket'], expires].map { |v| v.to_s.delete('|') }.join('|')
 end
 
