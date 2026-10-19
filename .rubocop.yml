@@ -153,6 +153,7 @@ Naming/MethodParameterName:
   AllowedNames:
   - vm
   - id
+  - op
 # rspec-puppet idiom is is_expected on the implicit subject.
 RSpec/ImplicitSubject:
   Enabled: false
@@ -171,4 +172,8 @@ Metrics/CyclomaticComplexity:
 Metrics/PerceivedComplexity:
   Enabled: false
 RSpec/MultipleMemoizedHelpers:
+  Enabled: false
+Metrics/ClassLength:
+  Enabled: false
+RSpec/ExampleLength:
   Enabled: false

@@ -5,7 +5,7 @@ Hypervisor and cloud snapshots for Puppet Enterprise plans. Take a snapshot of a
 | Provider | Status |
 | --- | --- |
 | Proxmox VE | Built, tested on a Proxmox 9.2 cluster |
-| GCE | Planned |
+| GCE | Built, specs only until the lab service account exists. No restore |
 | vSphere, libvirt, AWS, Azure | Planned |
 
 The design and the reasoning behind it are in [docs/design.md](docs/design.md).
@@ -76,6 +76,35 @@ done
 `VM.PowerMgmt` is only for starting a VM after a restore. Nothing needs `Sys.Audit` or an ACL on `/nodes`, because a token can read the status of its own tasks. Granting per VM (or per pool, if your pools separate patchable VMs from infrastructure) keeps the PE primary, compilers and anything else you would never roll back out of the token's sight: a VM it can't see fails as `pe_snapshot/vm_not_found`. A new VM needs its ACL before it can be snapshotted.
 
 The credentials are `{"token_id": "pe_snapshot@pve!pe_snapshot", "token_secret": "..."}`. The VM is found by matching its SMBIOS UUID (`dmi.product.uuid`) against each VM's `smbios1` setting, or by setting `pe_snapshot::vm_id` to the vmid. Proxmox has no quiesce option. It freezes the guest filesystem through the QEMU guest agent whenever the agent is enabled on the VM.
+
+### GCE
+
+A service account with a custom role holding only what pe_snapshot calls:
+
+```sh
+P=<project>
+gcloud iam roles create peSnapshot --project $P --title "pe_snapshot" \
+  --permissions compute.instances.get,compute.instances.list,compute.disks.get,compute.disks.createSnapshot,compute.snapshots.create,compute.snapshots.get,compute.snapshots.list,compute.snapshots.delete,compute.snapshots.setLabels,compute.zoneOperations.get,compute.globalOperations.get
+gcloud iam service-accounts create pe-snapshot --project $P
+gcloud projects add-iam-policy-binding $P --role projects/$P/roles/peSnapshot --member serviceAccount:pe-snapshot@$P.iam.gserviceaccount.com
+gcloud iam service-accounts keys create key.json --iam-account pe-snapshot@$P.iam.gserviceaccount.com
+```
+
+The endpoint takes the project as an option, and the credentials are the key file's JSON as it comes:
+
+```yaml
+pe_snapshot::proxy::endpoints:
+  - name: gce_prod
+    provider: gce
+    options:
+      project: my-project
+pe_snapshot::proxy::credentials:
+  gce_prod: ENC[PKCS7,...]
+```
+
+The proxy signs a JWT with the key and exchanges it for an hour-long token, so the key itself never leaves the proxy. It is still a long-lived credential: keep it out of any repository, rotate it with `gcloud iam service-accounts keys`, and prefer the external credentials file if a secrets agent can write it.
+
+A node is identified as `<zone>/<instance>` from its `gce` fact, which works when the instance name differs from the certname. GCE snapshots disks, not VMs, so one pe_snapshot snapshot is one disk snapshot per attached disk, all labelled `pe_snapshot_name=<name>`. `quiesce: true` asks the guest to flush (`guestFlush`), and there is no memory state. Restore is refused with `pe_snapshot/restore_unsupported`: create disks from the labelled snapshots, stop the instance, swap the disks and start it.
 
 ## Retention
 
@@ -185,9 +214,10 @@ Where a hypervisor credential exists:
 | --- | --- |
 | Hiera | eyaml ciphertext, or nothing at all with `Deferred` |
 | Compiled catalog and the proxy's cached catalog | The decrypted value, as Sensitive, unless it is `Deferred`. Anyone who can read the proxy's catalog or PuppetDB's catalog store can read it |
-| `/etc/puppetlabs/pe_snapshot/endpoints/<endpoint>.creds.json` | root `0600`, `backup => false` so no old copy lands in the clientbucket |
+| `/etc/puppetlabs/pe_snapshot/endpoints/<endpoint>.creds.json` | root `0600`, `backup => false`. This matters: the clientbucket stores a Sensitive file's old content in plain text on change |
 | `/etc/puppetlabs/pe_snapshot/credentials.d/<endpoint>.json` | Only if an external agent writes it |
 | Backups and VM snapshots of the proxy | Including snapshots pe_snapshot itself takes, if the proxy is a target |
+| PE support bundle | File names only. The bundle lists `/etc/puppetlabs` but doesn't copy this directory |
 | Orchestrator job records | Never. `credentials` is typed `Sensitive`, so the orchestrator lists it under `options.sensitive` and stores no value |
 
 The token can only snapshot what its hypervisor ACL lets it see, so scope it to the VMs you patch (see the Proxmox section). An unreadable credentials file is reported in the `pe_snapshot_proxy` fact by name and error class only, never with its content.

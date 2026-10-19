@@ -198,17 +198,22 @@ module PeSnapshot
       request(Net::HTTP::Post, path, body)
     end
 
+    # OAuth token endpoints want a form, not JSON.
+    def post_form(path, fields)
+      request(Net::HTTP::Post, path, URI.encode_www_form(fields), 'application/x-www-form-urlencoded')
+    end
+
     def delete(path)
       request(Net::HTTP::Delete, path)
     end
 
-    def request(klass, path, body = nil)
+    def request(klass, path, body = nil, content_type = 'application/json')
       uri = URI("#{@base}#{path}")
       req = klass.new(uri)
       @headers.each { |k, v| req[k] = v }
       if body
-        req['Content-Type'] = 'application/json'
-        req.body = JSON.generate(body)
+        req['Content-Type'] = content_type
+        req.body = body.is_a?(String) ? body : JSON.generate(body)
       end
       res = Net::HTTP.start(uri.host, uri.port, nil, use_ssl: uri.scheme == 'https', verify_mode: @verify_tls ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE,
                                                      ca_file: @ca_file, open_timeout: @timeout, read_timeout: @timeout) do |http|
