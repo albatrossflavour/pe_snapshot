@@ -4,9 +4,7 @@ Running pe_snapshot once it's installed. Setup is in [the install guide](guide/R
 
 ## Checking it's healthy
 
-The Snapshots board answers most of it: endpoints in error, unmapped nodes, expired snapshots the sweep hasn't removed, and anything older than a week. The same alerts fire in Prometheus.
-
-Without the board, from the primary:
+From the primary, the proxies' endpoints and snapshots, and any unmapped nodes:
 
 ```sh
 sudo puppet query 'facts[certname, value] { name = "pe_snapshot_proxy" }'
@@ -66,15 +64,12 @@ Change the module's version in the control repo's Puppetfile and deploy it as yo
 
 The tasks carry their library with them, so the next plan run uses the new code. The facts and the sweep pick it up on each node's next agent run. Read the [changelog](../CHANGELOG.md) before deploying for anything that needs Hiera changes.
 
-If the upgrade changes the board or rules, run the agent twice on the primary and once on the dashboard node.
-
 ## Uninstalling
 
 1. List and delete every managed snapshot. `pe_snapshot_proxy.snapshots` on each proxy is the full list.
-2. Set `pe_snapshot::pobs::ensure: absent` and run the agent twice on the primary and once on the dashboard node, then remove the class.
-3. Remove `pe_snapshot::proxy` from the proxies and `pe_snapshot` from the nodes.
-4. Delete `/etc/puppetlabs/pe_snapshot` on every node. On Windows it's `C:/ProgramData/PuppetLabs/pe_snapshot`.
-5. Revoke the credentials. For Proxmox, remove the token, the user and the `PESnapshot` role. For GCE, delete the service account and the `peSnapshot` role. For AWS, delete the access keys, the policy and the user. For vSphere, remove the permissions, the `PESnapshot` role and the user.
-6. Remove the module from the Puppetfile.
+2. Remove `pe_snapshot::proxy` from the proxies and `pe_snapshot` from the nodes.
+3. Delete `/etc/puppetlabs/pe_snapshot` on every node. On Windows it's `C:/ProgramData/PuppetLabs/pe_snapshot`.
+4. Revoke the credentials. For Proxmox, remove the token, the user and the `PESnapshot` role. For GCE, delete the service account and the `peSnapshot` role. For AWS, delete the access keys, the policy and the user. For vSphere, remove the permissions, the `PESnapshot` role and the user.
+5. Remove the module from the Puppetfile.
 
-Snapshots left on a hypervisor after step 3 are ordinary snapshots. Any name starting `pes-` came from pe_snapshot, and its description holds the metadata, so they're easy to find by hand.
+Snapshots left on a hypervisor after step 2 are ordinary snapshots. Any name starting `pes-` came from pe_snapshot, and its description holds the metadata, so they're easy to find by hand.

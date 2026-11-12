@@ -1,13 +1,12 @@
 # pe_snapshot design
 
-A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed nodes, deletes them on command or when they expire, restores one on request, and reports what exists through facts and a POBS collector plugin.
+A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed nodes, deletes them on command or when they expire, restores one on request, and reports what exists through facts.
 
 ## Constraints
 
 - Runs under the PE orchestrator. No Bolt-only plan functions (`parallelize`, `background`, `wait_until_available`, `file::write`, inventory vars, remote transports). Validated on the lab primary, not with Bolt.
 - Composable. Each plan is usable on its own and as a step in another plan, and returns a ResultSet with one Result per target.
 - Extensible. A provider is one Ruby file implementing the methods listed in CONTRIBUTING.md. Adding a hypervisor touches no plan, task or class.
-- No POBS changes. Reporting goes through the collector plugin contract (version 2).
 
 ## Providers
 
@@ -142,35 +141,17 @@ On the proxy, `pe_snapshot_proxy`:
 }
 ```
 
-`state` is `active` or `expired` (past expiry and still present). An `orphaned` state, for a snapshot whose node is no longer active, was considered and left out: the proxy can't see which nodes are active without a PuppetDB query from a fact. `age_bucket` is `lt_1h`, `1h_24h`, `1d_7d` or `gt_7d`. These are computed when the fact runs, because the POBS fleet query only does equality counts. Arrays are used in place of name-keyed hashes because fleet query paths can't address keys containing hyphens or dots.
+`state` is `active` or `expired` (past expiry and still present). An `orphaned` state, for a snapshot whose node is no longer active, was considered and left out: the proxy can't see which nodes are active without a PuppetDB query from a fact. `age_bucket` is `lt_1h`, `1h_24h`, `1d_7d` or `gt_7d`. These are computed when the fact runs, so a consumer that can only count equal values can still count by age. Arrays are used in place of name-keyed hashes because some query paths can't address keys containing hyphens or dots.
 
 The proxy fact is authoritative. The target marker can go stale when a snapshot is removed outside the module, and its own agent run cross-checks nothing, so treat it as a convenience for per-node queries.
-
-## POBS collector plugin
-
-`pe_snapshot::pobs`, declared on the primary, ships `files/pobs` through `observability::plugin`. It needs `enable_collector_plugins` on, and makes no change to POBS.
-
-The collector is declarative (`collector.yaml`, contract version 2), so POBS counts the facts with its own code and no pe_snapshot code runs in the daemon. The fleet query only does equality counts, so the facts carry colon-joined fields that one `count_values` each splits into labels:
-
-| Family | Labels | Fact field |
-| --- | --- | --- |
-| `pe_snapshot_snapshots` | `endpoint`, `state`, `age_bucket` | `pe_snapshot_proxy.snapshots.*.summary` |
-| `pe_snapshot_endpoints` | `endpoint`, `status` | `pe_snapshot_proxy.endpoints.*.health` |
-| `pe_snapshot_nodes` | `provider`, `mapping` | `pe_snapshot.coverage` |
-| `pe_snapshot_nodes_with_snapshot` | | `count('pe_snapshot.active' => true)` |
-
-Alert rules: `PeSnapshotExpiredNotSwept` (75 minutes, since the proxy fact lags the sweep by one agent run), `PeSnapshotEndpointUnreachable` and `PeSnapshotOlderThanAWeek`. One board, in its own Snapshots folder.
-
-Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules loaded in Prometheus, the board was provisioned, and every panel query returned the lab's real numbers. The board was then checked in a browser and its layout fixed, and it gained the Patch windows annotation layer once observability R1136 shipped.
 
 ## Build order
 
 1. Skeleton, the `pe_snapshot` class and fact, proxy class with credential files, the provider interface, the Proxmox provider, tasks, plans, sweep. Proven on the lab Proxmox VMs end to end.
 2. GCE provider, proven on the author's GCE instances (done 2026-10-19, running on a user's `authorized_user` credentials until the service account has its role).
-3. POBS plugin, boards and rules, proven on the lab dashboard (done 2026-10-19).
-4. vSphere through the SOAP API, built and run against vcsim (2026-10-19). Needs a real vCenter to check the role's privileges, quiesce and revert.
-5. AWS through the EC2 Query API with SigV4 by hand, built and run against moto, with the signature checked against botocore (2026-10-19). Needs a real account to check the IAM policy and the description limit.
-6. libvirt and Azure providers, planned and not built. Each will be covered by specs against recorded API responses, and flagged as not lab-tested until somebody has an endpoint.
+3. vSphere through the SOAP API, built and run against vcsim (2026-10-19). Needs a real vCenter to check the role's privileges, quiesce and revert.
+4. AWS through the EC2 Query API with SigV4 by hand, built and run against moto, with the signature checked against botocore (2026-10-19). Needs a real account to check the IAM policy and the description limit.
+5. libvirt and Azure providers, planned and not built. Each will be covered by specs against recorded API responses, and flagged as not lab-tested until somebody has an endpoint.
 
 ## Validation
 
@@ -182,4 +163,3 @@ Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules l
 
 - Restore on cloud providers.
 - Backup products as providers (a create that starts and polls a backup job fits the interface, so this is a later provider, not a redesign).
-- Pushing events to the POBS events API.

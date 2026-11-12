@@ -43,4 +43,4 @@ shows no snapshot with the change's tag on the nodes the change worked on, and o
 
 ## Next
 
-[Watch it in Puppet Observability](06-observability.md), or nothing more.
+To add an endpoint later, do steps 1 and 2 for it, then step 3 for its nodes.

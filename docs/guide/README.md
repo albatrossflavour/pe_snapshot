@@ -8,7 +8,6 @@ This guide takes you from choosing a proxy to a first snapshot taken and deleted
 |---|---|
 | Snapshots from your own plans or `puppet plan run` | 1 to 4 |
 | Snapshots around changes your own plans make | 1 to 5 |
-| Snapshots on the Puppet Observability dashboards and alerts | 1 to 4, and 6 |
 | Another hypervisor or cloud on an existing install | 1 and 2 for the new endpoint, then 3 for its nodes |
 
 ## The steps
@@ -18,7 +17,6 @@ This guide takes you from choosing a proxy to a first snapshot taken and deleted
 3. [Map the nodes](03-nodes.md)
 4. [Take a first snapshot](04-first-snapshot.md)
 5. [Snapshot around a change](05-change.md)
-6. [Watch it in Puppet Observability](06-observability.md)
 
 ## Upgrading
 

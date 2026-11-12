@@ -7,7 +7,7 @@ Start with the error's `kind`. Every failure pe_snapshot reports is a `pe_snapsh
 | Question | Where |
 | --- | --- |
 | How does a node map to a proxy, endpoint and VM? | Its `pe_snapshot` fact: `sudo puppet query 'facts[value] { name = "pe_snapshot" and certname = "<node>" }'` on the primary |
-| Which nodes are unmapped? | The Snapshots board's Unmapped Nodes table, or `pe_snapshot.coverage` ending `:unmapped` |
+| Which nodes are unmapped? | `pe_snapshot.coverage` ending `:unmapped` |
 | Can the proxy reach its endpoints? | `sudo puppet facts show pe_snapshot_proxy` on the proxy. Each endpoint has a `status` and, when it's `error`, the reason |
 | What snapshots exist? | The same fact's `snapshots`, which comes from the hypervisor. A target's own fact is only its marker file |
 | Did the sweep delete anything? | The proxy's agent run output. Each deletion logs `<endpoint> <vm_id> <name>: deleted, expired <time>` |
@@ -90,8 +90,6 @@ AWS errors carry the EC2 error code in `details.code`. `UnauthorizedOperation` m
 
 ## The sweep isn't deleting expired snapshots
 
-The `PeSnapshotExpiredNotSwept` alert fires after 75 minutes, which allows for the proxy's fact lagging its sweep by one run.
-
 | Cause | Detail |
 |---|---|
 | The proxy isn't running Puppet | The sweep runs only during the proxy's agent runs. |
@@ -103,26 +101,6 @@ The `PeSnapshotExpiredNotSwept` alert fires after 75 minutes, which allows for t
 ## Plans fail with a permission error
 
 The plans run their tasks on the proxy. The user running a plan needs PE permission to run the `pe_snapshot` tasks on the proxy as well as on the targets, and the `pe_snapshot::marker` task on the targets.
-
-## The board
-
-| Symptom | Cause |
-| --- | --- |
-| A board or rule change doesn't appear | It takes two agent runs on the primary, then one on the dashboard node. [Puppet Observability](observability.md) explains why |
-| The board doesn't appear at all, and the primary run says the plugin's board was refused | The board asks for the `patches` annotation layer, which needs observability R1136 or later. The collector and rules still load |
-| Snapshots By Node and Unmapped Nodes are empty while the stats show snapshots | `observability::enable_custom_metrics` is off on the primary, or `pe_snapshot::pobs::node_tables` is false |
-| Endpoints shows `error` | Same as the proxy fact. The fact holds the reason |
-| A node is missing from the node counts | It hasn't had two agent runs with the class yet, so its fact hasn't reached PuppetDB |
-
-## Alerts
-
-Each alert's entry on Puppet Observability's Runbook board carries the same steps as this table, from the rule's description in `files/pobs/rules.yaml`.
-
-| Alert | Severity | Start with |
-| --- | --- | --- |
-| `PeSnapshotExpiredNotSwept` | warning, after 75 minutes | [The sweep isn't deleting expired snapshots](#the-sweep-isnt-deleting-expired-snapshots) |
-| `PeSnapshotEndpointUnreachable` | warning, after 1 hour | The endpoint's `error` in the proxy's `pe_snapshot_proxy` fact, then [API errors](#api-errors) |
-| `PeSnapshotOlderThanAWeek` | info, after 1 hour | Snapshots By Node on the board. They exist because `allow_no_expiry` is on or `max_retention_hours` is over 168. Delete the ones nobody needs |
 
 ## A restored node doesn't list its snapshot
 

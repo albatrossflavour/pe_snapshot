@@ -44,4 +44,4 @@ A failed node's result carries an `_error` with a kind such as `pe_snapshot/vm_n
 
 ## Next
 
-[Snapshot around a change](05-change.md), or [watch it in Puppet Observability](06-observability.md).
+[Snapshot around a change](05-change.md).

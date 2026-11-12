@@ -1,6 +1,6 @@
 # Contributing
 
-Read [docs/design.md](docs/design.md) first. It has the constraints every change has to keep: orchestrator-only plan functions, plans that return a ResultSet, stdlib-only Ruby, and no changes to Puppet Observability.
+Read [docs/design.md](docs/design.md) first. It has the constraints every change has to keep: orchestrator-only plan functions, plans that return a ResultSet, and stdlib-only Ruby.
 
 ## Dev loop
 
@@ -32,7 +32,6 @@ Specs don't prove a change works against a hypervisor. Before a change is done, 
 2. Run the agent twice on the proxy and on a target. The second run must make no changes.
 3. Run each affected plan from the primary with `puppet plan run`: create, list (check the facts), delete (check they clear), and a create with a one-hour retention that the sweep removes.
 4. Restore only on a throwaway VM.
-5. For a board or rule change, run the agent twice on the primary and once on the dashboard node, then look at the board in a browser.
 
 Say in the commit or PR what was lab-tested and what only has specs.
 
@@ -64,4 +63,4 @@ Then add the provider's `virtual` value to `pe_snapshot::virtual_map` in `data/c
 
 ## Commits
 
-Conventional commit prefixes (`feat:`, `fix:`, `docs:`), with a scope where it helps (`fix(board):`). Add a line to `CHANGELOG.md` under Unreleased for anything a user would notice.
+Conventional commit prefixes (`feat:`, `fix:`, `docs:`), with a scope where it helps (`fix(gce):`). Add a line to `CHANGELOG.md` under the next version for anything a user would notice.

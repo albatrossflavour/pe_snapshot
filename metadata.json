@@ -1,8 +1,8 @@
 {
   "name": "albatrossflavour-pe_snapshot",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Tony Green",
-  "summary": "Hypervisor and cloud snapshots for Puppet Enterprise plans, with expiry, facts and a POBS plugin",
+  "summary": "Hypervisor and cloud snapshots for Puppet Enterprise plans, with expiry and facts",
   "license": "Apache-2.0",
   "source": "https://github.com/albatrossflavour/pe_snapshot",
   "project_page": "https://github.com/albatrossflavour/pe_snapshot",

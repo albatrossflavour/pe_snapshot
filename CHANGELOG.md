@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- The README links to the docs on GitHub, so they work on the Forge
+
 ## 0.1.0
 
 First release. Snapshots nodes on Proxmox VE, GCE, vSphere, and AWS from Puppet Enterprise plans, and expires them on the proxy's agent runs.
@@ -14,5 +18,4 @@ First release. Snapshots nodes on Proxmox VE, GCE, vSphere, and AWS from Puppet 
 - Guests that Facter reports as `physical` (Rocky 9 and 10 without `virt-what`, Windows on Proxmox) are detected from the `hypervisors` fact or the DMI manufacturer
 - Credentials from Hiera, a `Deferred`, or an external file under `/etc/puppetlabs/pe_snapshot/credentials.d` for a secrets agent to write. Files are written with `backup => false`, an unreadable one is reported by path only, and the plans' `credentials` parameter is `Sensitive`, so the orchestrator stores no value
 - `pe_snapshot::restorable`, false by default on PE infrastructure. The restore plan refuses a node that isn't restorable
-- Puppet Observability plugin (`pe_snapshot::pobs`): collector, alert rules with runbook entries, and a Snapshots board with per-node tables and the Patch windows annotation layer. The board needs observability R1136 or later
 - An install guide in `docs/guide/`, with a check for each step, and reference pages for providers, configuration, plans and facts, secrets, operations, and troubleshooting

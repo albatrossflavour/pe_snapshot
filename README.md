@@ -19,8 +19,6 @@ It only ever lists, sweeps, or deletes snapshots it created itself. Each one is 
 - The plans look up each target's fact in PuppetDB, group the targets by proxy, and run one task per proxy.
 - On every agent run, the proxy lists the managed snapshots on its endpoints in its `pe_snapshot_proxy` fact, and deletes the ones that have expired.
 
-`pe_snapshot::pobs` optionally adds a collector, a Snapshots board, and alert rules to Puppet Observability.
-
 ## Requirements
 
 - Puppet Enterprise, with Puppet 8, PuppetDB, and the orchestrator
@@ -29,26 +27,25 @@ It only ever lists, sweeps, or deletes snapshots it created itself. Each one is 
 
 ## Getting started
 
-Follow [the install guide](docs/guide/README.md). It goes from choosing a proxy to a first snapshot taken and deleted, with a check at the end of each step, and on to wrapping a change in your own plan, and Puppet Observability.
+Follow [the install guide](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/guide/README.md). It goes from choosing a proxy to a first snapshot taken and deleted, with a check at the end of each step, and on to wrapping a change in your own plan.
 
 ## Reference
 
-- Each provider's least-privilege account and settings: [providers](docs/providers.md)
-- Proxies, endpoints, credentials, and retention: [configuration](docs/configuration.md)
-- The plans, using them around a change in your own plan, and the facts: [plans and facts](docs/plans.md)
-- The Puppet Observability plugin: [Puppet Observability](docs/observability.md)
-- Where credentials live and how to rotate them: [secrets](docs/secrets.md)
-- Running it day to day, upgrading, and uninstalling: [operations](docs/operations.md)
-- Every error and what to do about it: [troubleshooting](docs/troubleshooting.md)
-- Why it's built the way it is: [design](docs/design.md)
-- Every class, plan, task, and parameter: [REFERENCE.md](REFERENCE.md)
-- What changed in each release: [CHANGELOG.md](CHANGELOG.md)
-- Developing it and adding a provider: [CONTRIBUTING.md](CONTRIBUTING.md). Reporting a vulnerability: [SECURITY.md](SECURITY.md)
+- Each provider's least-privilege account and settings: [providers](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/providers.md)
+- Proxies, endpoints, credentials, and retention: [configuration](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/configuration.md)
+- The plans, using them around a change in your own plan, and the facts: [plans and facts](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/plans.md)
+- Where credentials live and how to rotate them: [secrets](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/secrets.md)
+- Running it day to day, upgrading, and uninstalling: [operations](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/operations.md)
+- Every error and what to do about it: [troubleshooting](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/troubleshooting.md)
+- Why it's built the way it is: [design](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/design.md)
+- Every class, plan, task, and parameter: [REFERENCE.md](https://github.com/albatrossflavour/pe_snapshot/blob/main/REFERENCE.md)
+- What changed in each release: [CHANGELOG.md](https://github.com/albatrossflavour/pe_snapshot/blob/main/CHANGELOG.md)
+- Developing it and adding a provider: [CONTRIBUTING.md](https://github.com/albatrossflavour/pe_snapshot/blob/main/CONTRIBUTING.md). Reporting a vulnerability: [SECURITY.md](https://github.com/albatrossflavour/pe_snapshot/blob/main/SECURITY.md)
 
 ## Limits
 
 - A VM id that matches more than one VM is refused with `pe_snapshot/ambiguous_vm`. Clones can keep their source's BIOS UUID (vCenter asks whether to keep it), and guessing could snapshot or restore the wrong machine. Set `pe_snapshot::vm_id` for those nodes.
-- PE infrastructure can't be restored unless you set `pe_snapshot::restorable` for it. See [secrets](docs/secrets.md) for why.
+- PE infrastructure can't be restored unless you set `pe_snapshot::restorable` for it. See [secrets](https://github.com/albatrossflavour/pe_snapshot/blob/main/docs/secrets.md) for why.
 - `restore` keeps the snapshot. The target's own marker file is rolled back with its disk, so its `pe_snapshot` fact won't list the snapshot afterwards. The proxy's fact still does.
 - The plans run their tasks on the proxy, so the user running a plan needs PE permission to run tasks on the proxy as well as on the targets.
 
