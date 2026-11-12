@@ -1,18 +1,18 @@
 # @summary Snapshots each target through the proxy that serves it, with an expiry.
 #
-# Works on its own and as a pe_patch::runbook step (type: plan, context: true),
-# where the runbook's run_id becomes the tag. Returns one Result per target. A
-# node whose snapshot failed has an _error value, so a runbook step can drop it.
+# Works on its own and from other plans. Returns one Result per target. A node
+# whose snapshot failed has an _error value, so a calling plan can leave it out
+# with ok_set.
 #
 # @param targets The nodes to snapshot.
-# @param tag Groups this run's snapshots for delete and restore. Defaults to pe_patch_context's run_id.
-# @param pe_patch_context Passed by a pe_patch::runbook step.
+# @param tag Groups this run's snapshots for delete and restore. Defaults to the run_id in pe_patch_context.
+# @param pe_patch_context Optional calling context. Its run_id is the tag when tag isn't given.
 # @param retention_hours Hours until the proxy's sweep deletes the snapshot. Defaults to the proxy's setting.
 # @param memory Include RAM state where the provider supports it.
 # @param quiesce Quiesce the guest filesystem where the provider supports it.
 # @param credentials Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 # @param marker Record the snapshot on each target, for the target's pe_snapshot fact.
-# @return [ResultSet] Each ok value has name, tag, created, expires and pe_patch_report.
+# @return [ResultSet] Each ok value has name, tag, created, expires, and pe_patch_report, a short summary for a caller that reports per node.
 plan pe_snapshot::create(
   TargetSpec $targets,
   Optional[String[1]] $tag = undef,

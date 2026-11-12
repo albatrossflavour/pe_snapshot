@@ -4,12 +4,12 @@
 # snapshots this module created are ever touched.
 #
 # @param targets The nodes whose snapshots to delete.
-# @param tag Delete snapshots with this tag. Defaults to pe_patch_context's run_id.
+# @param tag Delete snapshots with this tag. Defaults to the run_id in pe_patch_context.
 # @param snapshot_name Delete the snapshot with this name.
-# @param pe_patch_context Passed by a pe_patch::runbook step.
+# @param pe_patch_context Optional calling context. Its run_id is the tag when tag isn't given.
 # @param credentials Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
 # @param marker Remove the snapshot from each target's marker file.
-# @return [ResultSet] Each ok value has deleted, the names removed, and pe_patch_report.
+# @return [ResultSet] Each ok value has deleted, the names removed, and pe_patch_report, a short summary for a caller that reports per node.
 plan pe_snapshot::delete(
   TargetSpec $targets,
   Optional[String[1]] $tag = undef,

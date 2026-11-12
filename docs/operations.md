@@ -1,6 +1,6 @@
 # Operations
 
-Running pe_snapshot once it's installed. Setup is in the [README](../README.md), and errors are in [troubleshooting](troubleshooting.md).
+Running pe_snapshot once it's installed. Setup is in [the install guide](guide/README.md), and errors are in [troubleshooting](troubleshooting.md).
 
 ## Checking it's healthy
 
@@ -15,19 +15,11 @@ sudo puppet query 'fact_contents[certname, value] { path ~> ["pe_snapshot", "cov
 
 ## Retention
 
-Change the limits in the proxy's Hiera:
-
-```yaml
-pe_snapshot::proxy::default_retention_hours: 24
-pe_snapshot::proxy::max_retention_hours: 168
-pe_snapshot::proxy::allow_no_expiry: false
-```
-
-They take effect on the proxy's next agent run and apply to new snapshots. A snapshot's expiry is written into its description when it's taken, so changing the limits doesn't extend or shorten existing ones. To keep a snapshot past its expiry, take a new one and delete the old.
+Change the limits in the proxy's Hiera, as [Retention](configuration.md#retention) describes. They take effect on the proxy's next agent run and apply to new snapshots. A snapshot's expiry is written into its description when it's taken, so changing the limits doesn't extend or shorten existing ones. To keep a snapshot past its expiry, take a new one and delete the old.
 
 ## Adding an endpoint
 
-1. Create the credential on the hypervisor, scoped as the README describes for the provider.
+1. Create the credential on the hypervisor, scoped as [providers](providers.md) describes for the provider.
 2. Add the endpoint to `pe_snapshot::proxy::endpoints` and its credential to `pe_snapshot::proxy::credentials`, under the same name.
 3. Run the agent on the proxy. `pe_snapshot_proxy.endpoints` should show the new endpoint as `ok` on the run after that.
 4. Set `pe_snapshot::endpoint` for the nodes it serves. Each needs two agent runs before its fact is complete.
@@ -49,10 +41,12 @@ Then remove it from Hiera, run the agent on the proxy, and revoke the credential
 
 Issue the new credential, put it in Hiera (or let the external agent rewrite its file), and run the agent on the proxy. Every task reads the credentials file when it starts, so the next call uses the new one. Then revoke the old one:
 
-- **Proxmox.** `pveum user token add` a new token with `--privsep 1`, grant it the same ACLs, then `pveum user token remove` the old one.
-- **GCE.** `gcloud iam service-accounts keys create` a new key, then `gcloud iam service-accounts keys delete` the old key's id once the proxy has run.
-- **AWS.** `aws iam create-access-key` a new key (a user can hold two), put it in Hiera, run the proxy, then `aws iam delete-access-key` the old one.
-- **vSphere.** There's one password, so change it in vCenter and in Hiera together, and run the agent on the proxy straight after. Tasks started in between fail with `auth_failed`.
+| Provider | Steps |
+|---|---|
+| Proxmox | `pveum user token add` a new token with `--privsep 1`, grant it the same ACLs, then `pveum user token remove` the old one. |
+| GCE | `gcloud iam service-accounts keys create` a new key, then `gcloud iam service-accounts keys delete` the old key's id once the proxy has run. |
+| AWS | `aws iam create-access-key` a new key (a user can hold two), put it in Hiera, run the proxy, then `aws iam delete-access-key` the old one. |
+| vSphere | There's one password, so change it in vCenter and in Hiera together, and run the agent on the proxy straight after. Tasks started in between fail with `auth_failed`. |
 
 If a credential leaks, revoke it on the hypervisor first and replace it second.
 
@@ -68,11 +62,7 @@ While both proxies have the class, both sweep. A snapshot can be deleted by eith
 
 ## Upgrading
 
-The control repo's Puppetfile tracks the module, so an upgrade is a code deploy:
-
-```sh
-sudo /opt/puppetlabs/bin/puppet-code deploy production --wait
-```
+Change the module's version in the control repo's Puppetfile and deploy it as you would any other module change.
 
 The tasks carry their library with them, so the next plan run uses the new code. The facts and the sweep pick it up on each node's next agent run. Read the [changelog](../CHANGELOG.md) before deploying for anything that needs Hiera changes.
 

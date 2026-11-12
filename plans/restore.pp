@@ -1,7 +1,6 @@
 # @summary Rolls one node back to a managed snapshot.
 #
-# Deliberately narrow: exactly one target, and the tag is required. Not meant
-# as a runbook step. The snapshot is kept after the rollback, and the node's
+# Deliberately narrow: exactly one target, and the tag is required. The snapshot is kept after the rollback, and the node's
 # marker file is rolled back with the disk, so its pe_snapshot fact won't list
 # the snapshot until the next create. The proxy's fact still does.
 #
@@ -10,7 +9,7 @@
 # @param snapshot_name Needed when more than one snapshot has the tag.
 # @param start Start the VM after the rollback.
 # @param credentials Added to the proxy's credentials files. Leave empty to use only those. Never stored in the orchestrator's job record.
-# @return [ResultSet] The ok value has name, tag and pe_patch_report.
+# @return [ResultSet] The ok value has name, tag, and pe_patch_report, a short summary for a caller that reports per node.
 plan pe_snapshot::restore(
   TargetSpec $targets,
   String[1] $tag,

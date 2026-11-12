@@ -60,7 +60,7 @@ Rules a provider has to follow:
 - Store the description pe_snapshot passes in, unchanged. It holds the metadata that marks a snapshot as managed.
 - Snapshot names are `pes-<8 hex>-<epoch>`. If the platform makes names global, add a suffix per disk or VM as the GCE provider does.
 
-Then add the provider's `virtual` value to `pe_snapshot::virtual_map` in `data/common.yaml` if facts can detect it, and a spec under `spec/unit/pe_snapshot/providers/`. Add a README section with the least privilege the provider's credential needs, and add any new error causes to the troubleshooting doc.
+Then add the provider's `virtual` value to `pe_snapshot::virtual_map` in `data/common.yaml` if facts can detect it, and a spec under `spec/unit/pe_snapshot/providers/`. Add a section to [providers](docs/providers.md) with the least privilege the provider's credential needs, and add any new error causes to the troubleshooting doc.
 
 ## Commits
 

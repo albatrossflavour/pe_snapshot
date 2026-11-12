@@ -14,6 +14,8 @@ describe 'pe_snapshot' do
     let(:params) { { 'proxy' => 'puppet.example.com', 'endpoint' => 'lab_pve' } }
 
     it { is_expected.to compile.with_all_deps }
+    it { is_expected.to contain_file('/etc/puppetlabs/pe_snapshot').with_ensure('directory') }
+    it { is_expected.to contain_file('/etc/puppetlabs/pe_snapshot/target.json').with_ensure('file') }
     it { expect(target_config).to eq('provider' => 'proxmox', 'proxy' => 'puppet.example.com', 'endpoint' => 'lab_pve', 'vm_id' => 'abc-1', 'restorable' => true, 'mapped' => true) }
   end
 
@@ -89,6 +91,7 @@ describe 'pe_snapshot' do
   context 'on Windows' do
     let(:facts) { base.merge('virtual' => 'kvm', 'os' => { 'family' => 'windows' }) }
 
+    it { is_expected.to contain_file('C:/ProgramData/PuppetLabs/pe_snapshot').with_ensure('directory') }
     it { is_expected.to contain_file('C:/ProgramData/PuppetLabs/pe_snapshot/target.json') }
   end
 end

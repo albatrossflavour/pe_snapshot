@@ -1,26 +1,26 @@
 # pe_snapshot design
 
-A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed nodes, deletes them on command or when they expire, restores one on request, and reports what exists through facts and a POBS collector plugin. Agreed with Tony 2026-10-19, with input from the pe_patch session.
+A Puppet Enterprise module that takes hypervisor and cloud snapshots of managed nodes, deletes them on command or when they expire, restores one on request, and reports what exists through facts and a POBS collector plugin.
 
 ## Constraints
 
 - Runs under the PE orchestrator. No Bolt-only plan functions (`parallelize`, `background`, `wait_until_available`, `file::write`, inventory vars, remote transports). Validated on the lab primary, not with Bolt.
-- Composable. Each plan is usable on its own and as a step in another plan or a `pe_patch::runbook`, and returns a ResultSet with one Result per target.
+- Composable. Each plan is usable on its own and as a step in another plan, and returns a ResultSet with one Result per target.
 - Extensible. A provider is one Ruby file implementing the methods listed in CONTRIBUTING.md. Adding a hypervisor touches no plan, task or class.
-- No POBS changes. Reporting goes through the collector plugin contract (version 2), which is as much a test of that contract as it is a feature.
+- No POBS changes. Reporting goes through the collector plugin contract (version 2).
 
 ## Providers
 
 | Provider | Detected from | VM identity | Lab test |
 | --- | --- | --- | --- |
 | `proxmox` | `virtual = kvm` (default for kvm, overridable) | `dmi.product.uuid` matched to the VM's `smbios1` uuid, or an explicit `vmid` | Yes, the lab VMs |
-| `gce` | `virtual = gce` | `gce.instance.name` and zone | Yes, the counterweight nodes |
+| `gce` | `virtual = gce` | `gce.instance.name` and zone | Yes, the author's GCE instances |
 | `vsphere` | `virtual = vmware` | `dmi.product.uuid` (BIOS uuid search in vCenter), or the managed object id | vcsim only, no real vCenter yet |
-| `libvirt` | Hiera only, since kvm means Proxmox here | domain uuid = `dmi.product.uuid` | Specs only unless a libvirt host appears |
+| `libvirt` | Hiera only, since kvm means Proxmox here | domain uuid = `dmi.product.uuid` | Planned, not built |
 | `aws` | `ec2_metadata` present | instance id; snapshots every attached EBS volume in one `CreateSnapshots` call | moto only, no real account yet |
 | `azure` | `az_metadata` present | VM resource id; snapshots each managed disk | Specs only |
 
-Cloud providers snapshot disks, not VMs. A "snapshot" there is the set of disk snapshots sharing one name and tag, and restore is out of scope for them in v1 (it means replacing disks, not reverting). The plan says so instead of attempting it.
+Cloud providers snapshot disks, not VMs. A "snapshot" there is the set of disk snapshots sharing one name and tag, and restore is out of scope for them in v1, because it means replacing disks. The plan refuses with `restore_unsupported`.
 
 Every provider uses Ruby stdlib only (`net/http`, `openssl`, `json`, and `rexml` for the XML APIs of vSphere and EC2). AWS SigV4 and the GCE service-account JWT are signed by hand. libvirt shells out to `virsh -c qemu+ssh://` from the proxy.
 
@@ -43,7 +43,7 @@ The proxy does not need the node list. Its expiry sweep lists every snapshot nam
 
 ## Snapshot identity
 
-- Name: `pes-<12 hex>`, derived from tag, certname and time. Short and plain enough for every provider (Proxmox allows 40 characters from `[A-Za-z0-9_-]` starting with a letter).
+- Name: `pes-<8 hex>-<epoch>`, derived from tag, certname and time. Short and plain enough for every provider (Proxmox allows 40 characters from `[A-Za-z0-9_-]` starting with a letter).
 - Metadata, in the description, labels or tags depending on provider: `{"pe_snapshot":1,"certname":...,"tag":...,"created":epoch,"expires":epoch,"by":...}`.
 - Only snapshots whose name starts `pes-` and whose metadata parses are managed. Hand-made snapshots are never listed, swept or deleted.
 
@@ -55,21 +55,22 @@ Endpoints are configured on the proxy with `pe_snapshot::proxy::endpoints`:
 pe_snapshot::proxy::endpoints:
   - name: lab_pve
     provider: proxmox
-    url: https://pve.lab.albatrossflavour.com:8006
+    url: https://pve1.example.com:8006
     verify_tls: true
-    credentials: >
-      ENC[PKCS7,...]
+pe_snapshot::proxy::credentials:
+  lab_pve: >
+    ENC[PKCS7,...]
 ```
 
-`credentials` is `Sensitive` or `Deferred`. A `Deferred` (Vault, a cloud KMS, anything with a deferred function) resolves on the proxy at agent run time, so the secret is never in the compiled catalog. The class writes one root-owned `0600` JSON file per endpoint under `/etc/puppetlabs/pe_snapshot/endpoints/`. Tasks check the file's owner and mode before reading it.
+Each `pe_snapshot::proxy::credentials` value is `Sensitive` or `Deferred`. A `Deferred` (Vault, a cloud KMS, anything with a deferred function) resolves on the proxy at agent run time, so the secret is never in the compiled catalog. The class writes one root-owned `0600` JSON file per endpoint under `/etc/puppetlabs/pe_snapshot/endpoints/`. Tasks check the file's owner and mode before reading it.
 
-A plan can also pass `credentials`, typed exactly `Sensitive[Hash]` with a `Sensitive({})` default. The exact type matters: the orchestrator only wraps JSON input in Sensitive, and only keeps the value out of the plan job record, for a parameter of that exact type. `Optional[Sensitive[Hash]]` was refused from the CLI and still stored in plain text in the job record (lab, plan job 2372, 2026-10-19). The value is unwrapped only at the `run_task` call and sent to a task parameter marked `sensitive`.
+A plan can also pass `credentials`, typed exactly `Sensitive[Hash]` with a `Sensitive({})` default. The exact type matters: the orchestrator only wraps JSON input in Sensitive, and only keeps the value out of the plan job record, for a parameter of that exact type. `Optional[Sensitive[Hash]]` was refused from the CLI and still stored in plain text in the job record (tested on PE, 2026-10-19). The value is unwrapped only at the `run_task` call and sent to a task parameter marked `sensitive`.
 
-An external agent (Vault Agent, CyberArk) can write `credentials.d/<endpoint>.json` instead. Puppet creates that directory and never purges it. The path is fixed, so a caller can't point a task at another file. A key supplied by more than one source is an error, the rule pe_patch is adopting. An unreadable credentials file is reported by name and error class only: a JSON parser error quotes the text around the fault, which can be the secret, and the message reaches PuppetDB through the proxy fact.
+An external agent (Vault Agent, CyberArk) can write `credentials.d/<endpoint>.json` instead. Puppet creates that directory and never purges it. The path is fixed, so a caller can't point a task at another file. A key supplied by more than one source is an error. An unreadable credentials file is reported by name and error class only: a JSON parser error quotes the text around the fault, which can be the secret, and the message reaches PuppetDB through the proxy fact.
 
 PE infrastructure (any node with `pe_server_version`) is not restorable by default, and the restore plan fails closed on a node whose fact doesn't say `restorable: true`. The stronger control is the hypervisor ACL: the token is granted per VM, so infrastructure VMs are invisible to it.
 
-These came out of a secrets review on 2026-10-19 (`pe_patch-private/docs/superpowers/planning/2026-10-19-secrets-review.md`).
+These came out of a secrets review on 2026-10-19.
 
 ## Retention
 
@@ -88,9 +89,9 @@ All four are generic. They take `provider`, `endpoint`, `vms` (an array of `{cer
 | `pe_snapshot::list` | `tag` (optional) | Read only |
 | `pe_snapshot::restore` | `name` or `tag` (required), `start` (true) | One VM per call |
 
-Errors follow pe_patch's shape: `{"_error": {"kind": "pe_snapshot/<thing>", "msg": ..., "details": {...}}}` with a non-zero exit. A partial batch succeeds overall and reports a per-certname failure, so a plan can drop the nodes that failed and carry on.
+Errors have one shape: `{"_error": {"kind": "pe_snapshot/<thing>", "msg": ..., "details": {...}}}` with a non-zero exit. A partial batch succeeds overall and reports a per-certname failure, so a plan can drop the nodes that failed and carry on.
 
-This departs from pe_patch's single-file task convention. Six providers sharing transport, retry and metadata code is a case for multi-file tasks (agent 6.6 or later, which every supported PE agent is).
+Tasks are multi-file. Six providers sharing transport, retry and metadata code is a case for multi-file tasks (agent 6.6 or later, which every supported PE agent is).
 
 ### Marker task (run on the target)
 
@@ -107,30 +108,13 @@ This departs from pe_patch's single-file task convention. Six providers sharing 
 
 Plans take `snapshot_name` where the tasks take `name`, because `$name` is reserved in the Puppet language.
 
-Every plan returns `ResultSet(targets.map |t| { Result.new(t, value) })`, with exactly one Result per target. A failed node's value is `{'_error' => {kind, msg, details}}`. That is how a `pe_patch::runbook` step judges each node, so its `drop` and `stop` handling sees a failed snapshot. A plain Hash would pass every target. The plans never call `fail_plan` for a per-node failure, because that fails every target. They do call it for bad input such as a retention over the ceiling.
+Every plan returns `ResultSet(targets.map |t| { Result.new(t, value) })`, with exactly one Result per target. A failed node's value is `{'_error' => {kind, msg, details}}`. That is how a calling plan tells which nodes failed, through `ok_set` and `error_set`. A plain Hash would pass every target. The plans never call `fail_plan` for a per-node failure, because that fails every target. They do call it for bad input such as a retention over the ceiling.
 
-`pe_patch_report` is a small Hash (`{name, expires}`) that pe_patch keeps per node under `reports.<step name>` and carries into its notifications. Other keys in an ok value are dropped by the runbook runner but are still there for a plain plan caller.
+`pe_patch_report` is a small Hash (`{name, expires}`, or `{deleted}` from delete) summarising each node's result for a caller that reports per node. `pe_patch_context` is an optional Hash: when `tag` is absent, create and delete use its `run_id` as the tag.
 
-Runbook integration rules, from pe_patch's step contract:
+`targets` is `TargetSpec`, and each plan name also exists as a task. `credentials` defaults to an empty `Sensitive`, so a caller that can't pass a `Sensitive` value relies on the proxy's credentials files.
 
-- `targets` is `TargetSpec`, because the runner passes an Array of certnames under that name.
-- `pe_patch_context` is `Optional[Hash]` and is what a step receives with `context: true` (`run_id`, `runbook`, `batch`, `failed`, `incomplete`, `step`). When `tag` is absent the plans use its `run_id`.
-- Each name exists as both a plan and a task. Runbook steps should say `type: plan`.
-- A runbook is plain JSON, so a step can't carry a `Sensitive` value. Through a runbook only the credentials file on the proxy works. `credentials` is `Optional` so a step that omits it passes preflight.
-
-```yaml
-- name: snapshot
-  run: pe_snapshot::create
-  type: plan
-  context: true
-  params:
-    retention_hours: 48
-  on_failure: drop
-```
-
-The plans resolve proxies themselves, so pe_patch doesn't need its planned step-level `via` to call them.
-
-Restore is never meant to be a runbook step. It refuses more than one target and refuses without a tag.
+Restore refuses more than one target and refuses without a tag.
 
 ### Sweep (agent run on the proxy)
 
@@ -142,7 +126,7 @@ On the target, `pe_snapshot`:
 
 ```json
 {
-  "provider": "proxmox", "proxy": "puppet.lab.albatrossflavour.com", "endpoint": "lab_pve", "vm_id": "...",
+  "provider": "proxmox", "proxy": "puppet.example.com", "endpoint": "lab_pve", "vm_id": "...",
   "active": true, "count": 1, "oldest_created": 1760832000, "age_bucket": "1h_24h", "state": "active",
   "snapshots": [{"name": "pes-...", "tag": "...", "created": 1760832000, "expires": 1760918400}]
 }
@@ -175,18 +159,18 @@ The collector is declarative (`collector.yaml`, contract version 2), so POBS cou
 | `pe_snapshot_nodes` | `provider`, `mapping` | `pe_snapshot.coverage` |
 | `pe_snapshot_nodes_with_snapshot` | | `count('pe_snapshot.active' => true)` |
 
-Bounded label sets, no per-node series. Alert rules: `PeSnapshotExpiredNotSwept` (75 minutes, since the proxy fact lags the sweep by one agent run), `PeSnapshotEndpointUnreachable` and `PeSnapshotOlderThanAWeek`. One board, in its own Snapshots folder.
+Alert rules: `PeSnapshotExpiredNotSwept` (75 minutes, since the proxy fact lags the sweep by one agent run), `PeSnapshotEndpointUnreachable` and `PeSnapshotOlderThanAWeek`. One board, in its own Snapshots folder.
 
 Proven on the lab 2026-10-19: the collector loaded and polled clean, the rules loaded in Prometheus, the board was provisioned, and every panel query returned the lab's real numbers. The board was then checked in a browser and its layout fixed, and it gained the Patch windows annotation layer once observability R1136 shipped.
 
 ## Build order
 
 1. Skeleton, the `pe_snapshot` class and fact, proxy class with credential files, the provider interface, the Proxmox provider, tasks, plans, sweep. Proven on the lab Proxmox VMs end to end.
-2. GCE provider, proven on the counterweight nodes (done 2026-10-19, running on a user's `authorized_user` credentials until the service account has its role).
+2. GCE provider, proven on the author's GCE instances (done 2026-10-19, running on a user's `authorized_user` credentials until the service account has its role).
 3. POBS plugin, boards and rules, proven on the lab dashboard (done 2026-10-19).
 4. vSphere through the SOAP API, built and run against vcsim (2026-10-19). Needs a real vCenter to check the role's privileges, quiesce and revert.
 5. AWS through the EC2 Query API with SigV4 by hand, built and run against moto, with the signature checked against botocore (2026-10-19). Needs a real account to check the IAM policy and the description limit.
-6. libvirt and Azure providers, covered by specs against recorded API responses and flagged as not lab-tested until somebody has an endpoint.
+6. libvirt and Azure providers, planned and not built. Each will be covered by specs against recorded API responses, and flagged as not lab-tested until somebody has an endpoint.
 
 ## Validation
 

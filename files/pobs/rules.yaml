@@ -53,7 +53,7 @@ pe_snapshot:
         **Risk**
 
         Expired snapshots there are not being swept, and plans that use the endpoint
-        will fail for its nodes. A pe_patch runbook whose snapshot step has `on_failure: drop` will leave them out.
+        will fail for its nodes, and a plan that snapshots before a change will leave them out of it.
 
         **When to act**
 

@@ -19,6 +19,8 @@ describe 'pe_snapshot::proxy' do
                            'default_retention_hours' => 24, 'max_retention_hours' => 168, 'allow_no_expiry' => false)
     end
 
+    it { is_expected.to contain_file('/etc/puppetlabs/pe_snapshot/endpoints').with(ensure: 'directory', mode: '0700', recurse: true) }
+
     it 'leaves the external credentials directory unpurged' do
       is_expected.to contain_file('/etc/puppetlabs/pe_snapshot/credentials.d').with(mode: '0700', owner: 'root')
       expect(catalogue.resource('File', '/etc/puppetlabs/pe_snapshot/credentials.d')[:purge]).to be_nil

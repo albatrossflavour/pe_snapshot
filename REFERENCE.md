@@ -13,7 +13,7 @@
 ### Functions
 
 * [`pe_snapshot::creds_json`](#pe_snapshot--creds_json): Turns endpoint credentials into the JSON written to the proxy's credentials file.
-* [`pe_snapshot::tag`](#pe_snapshot--tag): The tag a plan acts on: the one given, else a pe_patch runbook's run_id.
+* [`pe_snapshot::tag`](#pe_snapshot--tag): The tag a plan acts on: the one given, else the run_id in its context.
 
 ### Tasks
 
@@ -287,7 +287,7 @@ The credentials.
 
 Type: Puppet Language
 
-The tag a plan acts on: the one given, else a pe_patch runbook's run_id.
+The tag a plan acts on: the one given, else the run_id in its context.
 
 #### `pe_snapshot::tag(Optional[String[1]] $tag, Optional[Hash] $context)`
 
@@ -305,7 +305,7 @@ The tag passed to the plan.
 
 Data type: `Optional[Hash]`
 
-The pe_patch_context a pe_patch::runbook step passes with context: true.
+The plan's optional pe_patch_context Hash.
 
 ## Tasks
 
@@ -569,9 +569,9 @@ Start the VM after the rollback. Default true.
 
 ### <a name="pe_snapshot--create"></a>`pe_snapshot::create`
 
-Works on its own and as a pe_patch::runbook step (type: plan, context: true),
-where the runbook's run_id becomes the tag. Returns one Result per target. A
-node whose snapshot failed has an _error value, so a runbook step can drop it.
+Works on its own and from other plans. Returns one Result per target. A node
+whose snapshot failed has an _error value, so a calling plan can leave it out
+with ok_set.
 
 #### Parameters
 
@@ -596,7 +596,7 @@ The nodes to snapshot.
 
 Data type: `Optional[String[1]]`
 
-Groups this run's snapshots for delete and restore. Defaults to pe_patch_context's run_id.
+Groups this run's snapshots for delete and restore. Defaults to the run_id in pe_patch_context.
 
 Default value: `undef`
 
@@ -604,7 +604,7 @@ Default value: `undef`
 
 Data type: `Optional[Hash]`
 
-Passed by a pe_patch::runbook step.
+Optional calling context. Its run_id is the tag when tag isn't given.
 
 Default value: `undef`
 
@@ -674,7 +674,7 @@ The nodes whose snapshots to delete.
 
 Data type: `Optional[String[1]]`
 
-Delete snapshots with this tag. Defaults to pe_patch_context's run_id.
+Delete snapshots with this tag. Defaults to the run_id in pe_patch_context.
 
 Default value: `undef`
 
@@ -690,7 +690,7 @@ Default value: `undef`
 
 Data type: `Optional[Hash]`
 
-Passed by a pe_patch::runbook step.
+Optional calling context. Its run_id is the tag when tag isn't given.
 
 Default value: `undef`
 
@@ -746,8 +746,7 @@ Default value: `Sensitive({})`
 
 ### <a name="pe_snapshot--restore"></a>`pe_snapshot::restore`
 
-Deliberately narrow: exactly one target, and the tag is required. Not meant
-as a runbook step. The snapshot is kept after the rollback, and the node's
+Deliberately narrow: exactly one target, and the tag is required. The snapshot is kept after the rollback, and the node's
 marker file is rolled back with the disk, so its pe_snapshot fact won't list
 the snapshot until the next create. The proxy's fact still does.
 

@@ -27,9 +27,6 @@ config:
   MD024: false
   # First line must be a top-level heading. These are Obsidian notes as much as
   # they are files: the title comes from the filename, so a document that opens
-  # at H2 or H3 is deliberate rather than a missing H1. pdctng's roadmap rows
-  # open `### RNNN - title` after their frontmatter and all 54 trip this.
-  # Promoting them to H1 would put the row number in the outline twice, once
-  # from the filename and once from the heading.
+  # at H2 or H3 is deliberate rather than a missing H1.
   MD041: false
 

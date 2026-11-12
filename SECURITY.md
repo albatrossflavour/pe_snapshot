@@ -13,11 +13,11 @@ pe_snapshot holds credentials that can snapshot, delete snapshots of and roll ba
 - Deleting or restoring a snapshot pe_snapshot didn't create.
 - Getting past the retention limits or the restore guard on PE infrastructure.
 
-A hypervisor credential that was granted more than the README's least-privilege setup is a configuration problem, not a vulnerability in the module.
+A hypervisor credential that was granted more than the least-privilege setup in [providers](docs/providers.md) is a configuration problem, not a vulnerability in the module.
 
 ## The security model
 
-The [README's Secrets section](README.md#secrets) lists every place a credential exists and how to rotate one. In short:
+[Secrets](docs/secrets.md) lists every place a credential exists and how to rotate one. In short:
 
 - The proxy is the trust boundary. The credentials are root-only files on it, and the tasks run there.
 - Use a credential scoped to the VMs you'd snapshot. PE infrastructure should be outside its reach, and restore refuses it by default anyway.
